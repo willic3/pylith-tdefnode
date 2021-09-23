@@ -1,0 +1,22 @@
+This directory contains the files necessary to create a TDEFNODE-based mesh
+for computing Green's functions.  The steps are as follows:
+
+1.  Go into the geometry directory, and run the 'create_defnode_quads.py'
+    script. This script automatically reads the 'create_cefnode_quads.cfg'
+    configuration script, which in turn specifies the .nod file to use
+    and several other parameters. You can just run the script by doing:
+
+    ./create_tdefnode_quads.py
+
+    After running the script, there will be several VTK files that can be
+    viewed in Paraview, as well as a number of journal files with
+    Cubit/Trelis commands.
+
+2.  Run Cubit/Trelis, and execute each of the *_master.jou files. This will
+    create a set of .sat and .cub files that can be read by Cubit/Trelis.
+
+3.  Move back into the 'mesh' directory (this directory), and then within
+    Cubit/Trelis execute each of the *_geometry.jou files. This will create
+    a Cubit geometry file that can then be used for meshing.
+
+

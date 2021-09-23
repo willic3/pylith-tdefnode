@@ -1,0 +1,7 @@
+# Fault up-ext down-ext asneg-ext aspos-ext
+xsh 0.0*km 0.0*km 0.0*km 0.0*km
+xiaojiang 0.0*km 0.0*km 0.0*km 0.0*km
+anning_zem 0.0*km 0.0*km 0.0*km 0.0*km
+dls 0.0*km 0.0*km 0.0*km 0.0*km
+lijiang 0.0*km 0.0*km 0.0*km 0.0*km
+yanfeng 0.0*km 0.0*km 0.0*km 0.0*km
