@@ -1,0 +1,7 @@
+This directory contains the site location information for this study.
+To create data coordinates (and a corresponding VTK file) in the local
+Transverse Mercator projection, just do:
+
+./get_data_coords.py
+
+This is a simple Python script that will create the .txt and .vtk files.
