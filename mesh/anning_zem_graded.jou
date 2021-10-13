@@ -1,0 +1,65 @@
+# ----------------------------------------------------------------------
+# Set units to SI.
+# ----------------------------------------------------------------------
+reset
+undo off
+set crash save off
+#{Units('si')}
+# set import mesh nodeset associativity on
+# set export mesh nodeset associativity on
+# set export mesh nodeset associativity complete on
+
+# ----------------------------------------------------------------------
+# Generate geometry
+# ----------------------------------------------------------------------
+import Cubit 'anning_zem_geometry.cub'
+
+# ----------------------------------------------------------------------
+# Set meshing scheme and sizing function.
+# ----------------------------------------------------------------------
+volume all scheme tetmesh
+surface all scheme trimesh
+# set import mesh vertex tolerance 200.0
+# set import mesh curve tolerance 200.0
+# set import mesh surface tolerance 200.0
+
+# set import mesh use nodeset associativity TRUE
+# set debug 120 on
+import sizing function "anning_zem_var_lev1.exo" block 1 variable "cell_size" time 0.0
+
+volume all sizing function type exodus
+surface all sizing function type exodus
+curve all scheme stride
+
+# ----------------------------------------------------------------------
+# Create volume mesh
+# ----------------------------------------------------------------------
+mesh surface all
+
+mesh volume all
+
+# ----------------------------------------------------------------------
+# Smooth mesh.
+# ----------------------------------------------------------------------
+
+#{condnum=2.2}
+#{loop(3)}
+cleanup volume all
+volume all smooth scheme condition number beta {condnum} cpu 5
+smooth volume all
+#{condnum=condnum-0.2}
+#{endloop}
+
+# ----------------------------------------------------------------------
+# Create nodesets and material blocks.
+# ----------------------------------------------------------------------
+playback 'anning_zem_bc.jou'
+
+# ----------------------------------------------------------------------
+# Rotate back to transverse Mercator coordinates and export mesh.
+# ----------------------------------------------------------------------
+transform mesh output rotate -45.0 about z
+set large exodus off
+set export mesh nodeset associativity on
+export mesh "anning_zem_mesh_graded.exo" dimension 3 overwrite
+
