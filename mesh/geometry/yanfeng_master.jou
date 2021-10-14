@@ -1,0 +1,22 @@
+reset
+# This is a simple Cubit journal file to create a volume
+# containing a set of quadrilateral surfaces from a set of
+# DEFNODE vertices.
+#
+# -----------------------------------------------------
+# Create vertices, then quadrilaterals, then curves to define
+# a surrounding volume.
+# -----------------------------------------------------
+playback 'yanfeng_vertex.jou'
+playback 'yanfeng_surf.jou'
+#
+# -----------------------------------------------------
+# Imprint and merge all surfaces.
+# -----------------------------------------------------
+merge all
+#
+# -----------------------------------------------------
+# Export DEFNODE volumes.
+# -----------------------------------------------------
+export Acis 'yanfeng_acis.sat' surface all overwrite
+export Cubit 'yanfeng_cubit.cub' surface all overwrite

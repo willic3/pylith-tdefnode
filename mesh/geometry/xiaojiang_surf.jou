@@ -1,0 +1,63 @@
+create curve vertex 1 5
+create curve vertex 2 6
+create curve vertex 3 7
+create curve vertex 4 8
+create curve vertex 5 9
+create curve vertex 6 10
+create curve vertex 7 11
+create curve vertex 8 12
+create curve vertex 9 13
+create curve vertex 10 14
+create curve vertex 11 15
+create curve vertex 12 16
+create curve vertex 13 17
+create curve vertex 14 18
+create curve vertex 15 19
+create curve vertex 16 20
+create curve vertex 17 21
+create curve vertex 18 22
+create curve vertex 19 23
+create curve vertex 20 24
+create curve vertex 21 25
+create curve vertex 22 26
+create curve vertex 23 27
+create curve vertex 24 28
+create curve vertex 1 2
+create curve vertex 5 6
+create curve vertex 9 10
+create curve vertex 13 14
+create curve vertex 17 18
+create curve vertex 21 22
+create curve vertex 25 26
+create curve vertex 2 3
+create curve vertex 6 7
+create curve vertex 10 11
+create curve vertex 14 15
+create curve vertex 18 19
+create curve vertex 22 23
+create curve vertex 26 27
+create curve vertex 3 4
+create curve vertex 7 8
+create curve vertex 11 12
+create curve vertex 15 16
+create curve vertex 19 20
+create curve vertex 23 24
+create curve vertex 27 28
+create surface curve 1 25 2 26
+create surface curve 2 32 3 33
+create surface curve 3 39 4 40
+create surface curve 5 26 6 27
+create surface curve 6 33 7 34
+create surface curve 7 40 8 41
+create surface curve 9 27 10 28
+create surface curve 10 34 11 35
+create surface curve 11 41 12 42
+create surface curve 13 28 14 29
+create surface curve 14 35 15 36
+create surface curve 15 42 16 43
+create surface curve 17 29 18 30
+create surface curve 18 36 19 37
+create surface curve 19 43 20 44
+create surface curve 21 30 22 31
+create surface curve 22 37 23 38
+create surface curve 23 44 24 45
