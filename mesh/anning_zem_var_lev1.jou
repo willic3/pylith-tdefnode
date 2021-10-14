@@ -16,9 +16,9 @@ import Cubit 'anning_zem_geometry.cub'
 # ----------------------------------------------------------------------
 volume all scheme tetmesh
 surface all scheme trimesh
-#{dxInner=0.3*km}
-#{dxMid=1.5*km}
-#{dxOuter=40.0*km}
+${dxInner=0.3*km}
+${dxMid=1.5*km}
+${dxOuter=40.0*km}
 surface 80 79 82 81 78 size {dxOuter}
 # surface 84 86 size {dxMid}
 surface 94 to 163 size {dxInner}
@@ -52,6 +52,7 @@ playback 'anning_zem_bc.jou'
 # Export mesh.
 # ----------------------------------------------------------------------
 export mesh "anning_zem_var_lev1.exo" dimension 3 overwrite
+
 
 
 
