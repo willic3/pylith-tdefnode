@@ -38,7 +38,7 @@ ${xlen=xmax-xmin-2.0*km}
 ${ylen=ymax-ymin-2.0*km}
 ${zlen=zmax-zmin-2.0*km}
 
-${xdim=xlen+8.0*km}
+${xdim=xlen+40.0*km}
 ${ydim=ylen-12.0*km}
 ${zmove=-0.5*zlen}
 
@@ -66,11 +66,13 @@ delete body 1
 # ----------------------------------------------------------------------
 # Imprint and merge all volumes.
 # ----------------------------------------------------------------------
+imprint all
 merge all
 
 # ----------------------------------------------------------------------
 # Export volume.
 # ----------------------------------------------------------------------
 save as 'anning_zem_geometry.cub' overwrite
+
 
 
