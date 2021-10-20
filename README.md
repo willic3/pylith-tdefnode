@@ -1,3 +1,4 @@
+## This project is a collaboration between Dr. Rui Xu, Dr. Charles Williams, and Dr. D. Sarah Stamps
 # tibet-tdefnode
 Scripts and files to use PyLith-generated Green's functions with TDefnode for SE Tibet
 
