@@ -38,13 +38,13 @@ ${xlen=xmax-xmin-2.0*km}
 ${ylen=ymax-ymin-2.0*km}
 ${zlen=zmax-zmin-2.0*km}
 
-${xdim=xlen+8.0*km}
-${ydim=ylen-12.0*km}
+${xdim=xlen+40.0*km}
+${ydim=ylen-5.0*km}
 ${zmove=-0.5*zlen}
 
 brick x {xdim} y {ydim} z {zlen}
 ${idFaultBox=Id("volume")}
-volume {idFaultBox} move x {xmid+8.0*km} y {ymid+8.0*km} z {zmove+0.001}
+volume {idFaultBox} move x {xmid+32.0*km} y {ymid+8.0*km} z {zmove+0.001}
 
 # ----------------------------------------------------------------------
 # Create outer volume.
@@ -73,6 +73,7 @@ merge all
 # Export volume.
 # ----------------------------------------------------------------------
 save as 'yanfeng_geometry.cub' overwrite
+
 
 
 
