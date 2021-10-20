@@ -12,21 +12,22 @@ set crash save off
 import Cubit 'anning_zem_geometry.cub'
 
 # ----------------------------------------------------------------------
-# Set meshing scheme.
+# Set meshing scheme and sizing.
 # ----------------------------------------------------------------------
 volume all scheme tetmesh
-surface all scheme trimesh
-${dxInner=0.3*km}
-${dxMid=1.5*km}
-${dxOuter=40.0*km}
+# surface all scheme trimesh
+${dxInner=2.0*km}
+${dxMid=4.0*km}
+${dxOuter=60.0*km}
 surface 80 79 82 81 78 size {dxOuter}
-# surface 84 86 size {dxMid}
+surface 84 86 size {dxMid}
 surface 94 to 163 size {dxInner}
+curve 365 528 526 366 scheme bias
 
 # ----------------------------------------------------------------------
 # Create volume mesh
 # ----------------------------------------------------------------------
-mesh surface all
+# mesh surface all
 # surface all smooth scheme condition number beta 2.0 cpu 5
 # surface all smooth scheme centroid area pull free
 # smooth surface all
@@ -52,12 +53,5 @@ playback 'anning_zem_bc.jou'
 # Export mesh.
 # ----------------------------------------------------------------------
 export mesh "anning_zem_var_lev1.exo" dimension 3 overwrite
-
-
-
-
-
-
-
 
 

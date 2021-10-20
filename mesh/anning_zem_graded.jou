@@ -5,9 +5,9 @@ reset
 undo off
 set crash save off
 #{Units('si')}
-# set import mesh nodeset associativity on
-# set export mesh nodeset associativity on
-# set export mesh nodeset associativity complete on
+set import mesh nodeset associativity on
+set export mesh nodeset associativity on
+set export mesh nodeset associativity complete on
 
 # ----------------------------------------------------------------------
 # Generate geometry
@@ -18,7 +18,7 @@ import Cubit 'anning_zem_geometry.cub'
 # Set meshing scheme and sizing function.
 # ----------------------------------------------------------------------
 volume all scheme tetmesh
-surface all scheme trimesh
+# surface all scheme trimesh
 # set import mesh vertex tolerance 200.0
 # set import mesh curve tolerance 200.0
 # set import mesh surface tolerance 200.0
@@ -34,21 +34,30 @@ curve all scheme stride
 # ----------------------------------------------------------------------
 # Create volume mesh
 # ----------------------------------------------------------------------
-mesh surface all
+# mesh surface all
+# surface all smooth scheme condition number beta 2.0 cpu 3
+# smooth surface all
+# smooth surface all
+# smooth surface all
+# collapse tri 251620
+# smooth surface all
+# smooth surface all
 
 mesh volume all
 
 # ----------------------------------------------------------------------
 # Smooth mesh.
 # ----------------------------------------------------------------------
+remesh tet quality condition no greater than 3.0 inflate 3
+remesh tet quality condition no greater than 2.0 inflate 3
 
-#{condnum=2.2}
-#{loop(3)}
-cleanup volume all
-volume all smooth scheme condition number beta {condnum} cpu 5
+volume all smooth scheme condition number beta 2.0 cpu 5
+set debug 91 on
 smooth volume all
-#{condnum=condnum-0.2}
-#{endloop}
+volume all smooth scheme condition number beta 1.8 cpu 5
+smooth volume all
+volume all smooth scheme condition number beta 1.8 cpu 10
+smooth volume 74
 
 # ----------------------------------------------------------------------
 # Create nodesets and material blocks.
@@ -56,10 +65,10 @@ smooth volume all
 playback 'anning_zem_bc.jou'
 
 # ----------------------------------------------------------------------
-# Rotate back to transverse Mercator coordinates and export mesh.
+# Export mesh.
 # ----------------------------------------------------------------------
-transform mesh output rotate -45.0 about z
-set large exodus off
-set export mesh nodeset associativity on
 export mesh "anning_zem_mesh_graded.exo" dimension 3 overwrite
+
+
+
 
