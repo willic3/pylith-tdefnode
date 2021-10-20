@@ -9,16 +9,16 @@ import numpy
 from pyproj import Proj
 from pyproj import transform
 
-import pdb
-pdb.set_trace()
+# import pdb
+# pdb.set_trace()
 
 # Filenames.
 inFile = "GNSS_sites_available.txt"
 outFileTxt = "GNSS_sites_available_tm.txt"
 outFileVTK = "GNSS_sites_available_tm.vtk"
 
-# Assume constant z-value of -10 m.
-zCorr = -10.0
+# Assume constant z-value of -1 m.
+zCorr = -1.0
 
 # Headers.
 vtkHead = \
@@ -26,7 +26,7 @@ vtkHead = \
         'Observation locations\n' + \
         'ASCII\n' + \
         'DATASET POLYDATA\n'
-txtHead = "#Site\tX\tY\tZ\n"
+txtHead = "#Site\tEastingTM\tNorthingTM\tElevationTM\n"
 
 # Projections.
 WGS84 = "+proj=lonlat +ellps=WGS84 +datum=WGS84 +towgs84=0.0,0.0,0.0"
