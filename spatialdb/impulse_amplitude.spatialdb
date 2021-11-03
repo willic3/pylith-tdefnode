@@ -1,0 +1,35 @@
+
+// -*- C++ -*- (tell Emacs to use C++ mode for syntax highlighting)
+//
+// This spatial database specifies the distribution of slip on the
+// fault surface. We specify a single value
+//
+#SPATIAL.ascii 1
+SimpleDB {
+  num-values = 1
+  value-names = slip
+  value-units = m
+  num-locs = 1
+  data-dim = 0
+  space-dim = 3
+  cs-data = geo-projected {
+    to-meters = 1.0
+    ellipsoid = WGS84
+    datum-horiz = WGS84
+    datum-vert = mean sea level
+    origin-lon = 0
+    origin-lat = 0
+    rotation-angle = 0
+    projector = projector {
+      projection = tmerc
+      units = m
+      proj-options = +lon_0=102.5 +lat_0=28.0 +k=0.9996
+    }
+  }
+}
+// Columns are
+// (1) x coordinate (m)
+// (2) y coordinate (m)
+// (3) z coordinate (m)
+// (4) slip (m)
+0.0  0.0  0.0    1.0
