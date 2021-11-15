@@ -17,6 +17,33 @@ for computing Green's functions.  The steps are as follows:
 
 3.  Move back into the 'mesh' directory (this directory), and then within
     Cubit/Trelis execute each of the *_geometry.jou files. This will create
-    a Cubit geometry file that can then be used for meshing.
+    a Cubit geometry file that can then be used for meshing. Note that it
+    may be necessary to adjust some of the parameters to get the fault to
+    properly intersect your bounding box (e.g., xdim, ydim, etc.).
 
+4.  Create an initial mesh but running Cubit/Trelis with the *_var_lev1.jou
+    files. This will create a coarse mesh onto which we can put sizing
+    function information. Note that these journal files will call the
+    *_bc.jou files, which assign blocks and define nodesets that are
+    needed by PyLith.
 
+5.  Run the create_cell_size_3d.py script to generate sizing function
+    information, e.g.:
+
+    ./create_cell_size_3d.py anning_zem_ccs3.cfg
+
+6.  After running the sizing function code you can look at the sizing
+    function info by opening the .exo file in ParaView. Make sure you
+    click the 'cell_size' button for arrays to show. It is sometimes
+    necessary to go back and forth with the parameters in the .cfg
+    file to get a nice cell size distribution.
+
+7.  Once you have the cell size the way you want it, you can create
+    a graded mesh using the *_graded.jou files in Cubit/Trelis. This
+    will read in the sizing function information from the earlier
+    mesh and use it to generate a new mesh. Once you've done this
+    you should have a nicely graded mesh to use for generating
+    Green's functions.
+
+NOTE:  So far, I have only gone through the above steps for anning_zem.
+       Each fault will need to have this done.
