@@ -2,4 +2,4 @@
 
     tdefnode pylith.tdfn py03
 
-    Please note that I set the interation control command to be'ic: 0' in this specific model so that no inversion will be performed.
+    Please note that I set the interation control command to be 'ic: 0' in this specific model so that no inversion will be performed.
