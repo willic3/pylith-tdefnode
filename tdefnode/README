@@ -1,0 +1,5 @@
+(1) To calcualte the green's functions with resolution of 1km*1km, run model 'py03' with the command:
+
+    tdefnode pylith.tdfn py03
+
+    Please note that I set the interation control command to be'ic: 0' in this specific model so that no inversion will be performed.
