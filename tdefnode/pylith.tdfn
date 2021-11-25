@@ -1,4 +1,4 @@
-flag: +mkb +cov -eko -inv
+flag: +mkb +cov -eko 
  sa: 30 300 4000
 sa: 60 20 4000
 sa: 20 5 500
@@ -360,11 +360,11 @@ zd: 20 88
 
 mo:py03
 pf: "py03/pio" 3
-gd: g13 1 1 0 1 1 500.0
+gd: g11 1 1 0 1 1 500.0
 cl: gps
 gp3: DLS "DLS_GNSS_sites_available.txt.vel" 1 1.0 0 0 0 1900 3000 0 4.0 0.0 1 1 0
 DR: 100 105 26 31
-flag: +mkb +cov -eko +atr -inv
+flag: +mkb +cov -eko +atr 
  in: 8 4
  ic: 2 2 2
 ic: 0
