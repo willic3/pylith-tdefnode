@@ -42,18 +42,26 @@ class Py2Def(Application):
     ## \b Properties
     ## @li \b ll_impulse_file Filename for left-lateral HDF5 impulse file.
     ## @li \b ud_impulse_file Filename for updip HDF5 impulse file.
+    ## @li \b nm_impulse_file Filename for normal slip HDF5 impulse file.
     ## @li \b ll_response_file Filename for left-lateral HDF5 response file.
     ## @li \b ud_response_file Filename for updip HDF5 response file.
+    ## @li \b nm_response_file Filename for normal slip HDF5 response file.
     ## @li \b gf_type Use DEFNODE or TDEFNODE Green's functions.
     ## @li \b unmatched_site_option Exit with error or create zero values for sites without Green's functions.
     ## @li \b fault_projection_plane Plane into which to project to determine whether points lie in DEFNODE quads.
     ## @li \b defnode_gf_dir Directory containing DEFNODE/TDEFNODE Green's functions.
     ## @li \b defnode_fault_num DEFNODE/TDEFNODE fault number.
+    ## @li \b defnode_fault_slip_type Use shear only or 3D (requires fault-normal Green's functions).
     ## @li \b mesh_coordsys Projection information for mesh coordinates.
     ## @li \b gf_output_directory Directory to put DEFNODE/TDEFNODE GF files.
     ## @li \b impulse_info_file Output VTK file with impulse information.
     ## @li \b response_info_root Root filename for VTK response information files.
     ## @li \b gf_scale Scaling factor to apply to Green's functions.
+    """
+    For now, assume I don't need to separately scale each GF type.
+    ## @li \b ud_scale Scaling factor to apply to updip Green's functions.
+    ## @li \b nm_scale Scaling factor to apply to normal slip Green's functions.
+    """
 
     import pyre.inventory
 
@@ -63,11 +71,17 @@ class Py2Def(Application):
     udImpulseFile = pyre.inventory.str("ud_impulse_file", default="gf_ud_fault.h5")
     udImpulseFile.meta['tip'] = "Filename of updip impulse HDF5 file."
 
+    nmImpulseFile = pyre.inventory.str("nm_impulse_file", default="gf_nm_fault.h5")
+    nmImpulseFile.meta['tip'] = "Filename of normal slip impulse HDF5 file."
+
     llResponseFile = pyre.inventory.str("ll_response_file", default="gf_ll_points.h5")
     llResponseFile.meta['tip'] = "Filename of left-lateral response HDF5 file."
 
     udResponseFile = pyre.inventory.str("ud_response_file", default="gf_ud_points.h5")
     udResponseFile.meta['tip'] = "Filename of updip response HDF5 file."
+
+    nmResponseFile = pyre.inventory.str("nm_response_file", default="gf_nm_points.h5")
+    nmResponseFile.meta['tip'] = "Filename of normal slip response HDF5 file."
 
     gfType = pyre.inventory.str("gf_type", default="defnode", validator=pyre.inventory.choice(["defnode", "tdefnode"]))
     gfType.meta['tip'] = "Use DEFNODE or TDEFNODE Green's functions."
@@ -85,6 +99,9 @@ class Py2Def(Application):
 
     defnodeFaultNum = pyre.inventory.int("defnode_fault_num", default=1)
     defnodeFaultNum.meta['tip'] = "DEFNODE/TDEFNODE fault number."
+
+    defnodeFaultSlipType = pyre.inventory.str("defnode_fault_slip_type", default="shear", validator=pyre.inventory.choice(["shear", "3d"]))
+    defnodeFaultSlipType.meta['tip'] = "Use shear only or 3D (requires fault-normal Green's functions)."
 
     meshCoordsys = pyre.inventory.str("mesh_coordsys",
         default="+proj=tmerc +lon_0=175.45 +lat_0=-40.825 +ellps=WGS84 +datum=WGS84 +k=0.9996 +towgs84=0.0,0.0,0.0")
@@ -133,12 +150,16 @@ class Py2Def(Application):
         self.dipDeg = None
         self.rakeDegE = None
         self.rakeDegN = None
+        self.rakeDeg = None
         self.llContrib = None
         self.udContrib = None
+        self.nmContrib = None
         self.llContribE = None
         self.udContribE = None
+        self.nmContribE = None
         self.llContribN = None
         self.udContribN = None
+        self.nmContribN = None
 
         self.defNodeCoords = None
         self.defNodeCoordsLocal = None
@@ -197,8 +218,8 @@ class Py2Def(Application):
 
 
     def main(self):
-        import pdb
-        pdb.set_trace()
+        # import pdb
+        # pdb.set_trace()
         self.projPylith = Proj(self.meshCoordsys)
         print("Working on fault number %d:" % self.defnodeFaultNum)
         self._readDefnode()
@@ -303,6 +324,22 @@ class Py2Def(Application):
         v.write(udHead)
         numpy.savetxt(v, self.udContrib, fmt="%g")
 
+        if (self.defnodeFaultSlipType == '3d'):
+            nmHeadE = "SCALARS nm_contrib_east double 1\n" + \
+                "LOOKUP_TABLE default\n"
+            v.write(nmHeadE)
+            numpy.savetxt(v, self.nmContribE, fmt="%g")
+
+            nmHeadN = "SCALARS nm_contrib_north double 1\n" + \
+                "LOOKUP_TABLE default\n"
+            v.write(nmHeadN)
+            numpy.savetxt(v, self.nmContribN, fmt="%g")
+
+            nmHead = "SCALARS nm_contrib double 1\n" + \
+                "LOOKUP_TABLE default\n"
+            v.write(nmHead)
+            numpy.savetxt(v, self.nmContrib, fmt="%g")
+
         stHead = "SCALARS strike_degrees double 1\n" + \
                  "LOOKUP_TABLE default\n"
         v.write(stHead)
@@ -322,6 +359,11 @@ class Py2Def(Application):
                   "LOOKUP_TABLE default\n"
         v.write(rknHead)
         numpy.savetxt(v, self.rakeDegN, fmt="%g")
+
+        rkHead = "SCALARS rake_degrees double 1\n" + \
+            "LOOKUP_TABLE default\n"
+        v.write(rkHead)
+        numpy.savetxt(v, self.rakeDeg, fmt="%g")
 
         v.close()
 
@@ -992,22 +1034,36 @@ class Py2Def(Application):
         """
         print("    Getting PyLith response coordinates and values:")
         
+        responseValsNM = None
         # Open response files and get coordinates.
         dataRLL = h5py.File(self.llResponseFile, 'r')
         self.responseCoords = dataRLL['geometry/vertices'][:]
         self.numResponses = self.responseCoords.shape[0]
         dataRUD = h5py.File(self.udResponseFile, 'r')
         responseCoordsRUD = dataRUD['geometry/vertices'][:]
+        if (self.defnodeFaultSlipType == '3d'):
+            dataRNM = h5py.File(self.nmResponseFile, 'r')
+            responseCoordsRNM = dataRNM['geometry/vertices'][:]
 
         print("      Correlating left-lateral and updip response coordinates:")
         sys.stdout.flush()
-        distanceRC = scipy.spatial.distance.cdist(self.responseCoords, responseCoordsRUD)
-        minIndicesRC = numpy.argmin(distanceRC, axis=1)
-        coordsRDiff = self.responseCoords - responseCoordsRUD[minIndicesRC,:]
+        distanceRCLU = scipy.spatial.distance.cdist(self.responseCoords, responseCoordsRUD)
+        minIndicesRCLU = numpy.argmin(distanceRCLU, axis=1)
+        coordsRDiff = self.responseCoords - responseCoordsRUD[minIndicesRCLU,:]
         coordsRNorm = numpy.linalg.norm(coordsRDiff)
         if (coordsRNorm > self.epsilon):
             msg = "Different coordinates for updip and left-lateral responses!"
             raise ValueError(msg)
+        if (self.defnodeFaultSlipType == '3d'):
+            print("      Correlating left-lateral and fault-normal response coordinates:")
+            sys.stdout.flush()
+            distanceRCLN = scipy.spatial.distance.cdist(self.responseCoords, responseCoordsRNM)
+            minIndicesRCLN = numpy.argmin(distanceRCLN, axis=1)
+            coordsRDiff = self.responseCoords - responseCoordsRNM[minIndicesRCLN,:]
+            coordsRNorm = numpy.linalg.norm(coordsRDiff)
+            if (coordsRNorm > self.epsilon):
+                msg = "Different coordinates for fault-normal and left-lateral responses!"
+                raise ValueError(msg)
 
         # Get response values.
         # For some reason, the entire array doesn't seem to load unless I use the read_direct method.
@@ -1016,22 +1072,28 @@ class Py2Def(Application):
         responseValsLL = numpy.zeros(shape, dtype=numpy.float64)
         responseValsUD = numpy.zeros(shape, dtype=numpy.float64)
         dataRLL['vertex_fields/displacement'].read_direct(responseValsLL)
-        # responseValsLL = dataRLL['vertex_fields/displacement'][:]
         self.numImpulses = responseValsLL.shape[0]
         dataRUD['vertex_fields/displacement'].read_direct(responseValsUD)
-        # responseValsUD = dataRUD['vertex_fields/displacement'][:]
-        responseValsUD = responseValsUD[:,minIndicesRC,:]
+        responseValsUD = responseValsUD[:,minIndicesRCLU,:]
+        if (self.defnodeFaultSlipType == '3d'):
+            responseValsNM = numpy.zeros(shape, dtype=numpy.float64)
+            dataRNM['vertex_fields/displacement'].read_direct(responseValsNM)
+            responseValsNM = responseValsNM[:,minIndicesRCLN,:]
 
         # Pad arrays with zeroes if we are keeping unmatched sites.
         if (self.unmatchedSiteOption == 'zero'):
             padArray = numpy.zeros((self.numImpulses, 1, 3), dtype=numpy.float64)
             responseValsLL = numpy.append(responseValsLL, padArray, axis=1)
             responseValsUD = numpy.append(responseValsUD, padArray, axis=1)
+            if (self.defnodeFaultSlipType == '3d'):
+                responseValsNM = numpy.append(responseValsNM, padArray, axis=1)
 
         dataRLL.close()
         dataRUD.close()
+        if (self.defnodeFaultSlipType == '3d'):
+            dataRNM.close()
 
-        return (responseValsLL, responseValsUD)
+        return (responseValsLL, responseValsUD, responseValsNM)
 
 
     def _getFaultInfo(self):
@@ -1040,6 +1102,7 @@ class Py2Def(Application):
         """
         print("    Getting fault information from PyLith fault info file:")
         
+        minIndicesFCLN = None
         # Get fault info from left-lateral fault info file.
         llInfoBase = self.llImpulseFile.rstrip('.h5')
         llImpulseInfoFile = llInfoBase + '_info.h5'
@@ -1052,6 +1115,19 @@ class Py2Def(Application):
         faultStrike = dataIFLL['vertex_fields/strike_dir'][0,:,:]
         faultDip = dataIFLL['vertex_fields/dip_dir'][0,:,:]
         dataIFLL.close()
+        #************** Experiment to make sure normal points upward. **************
+        """
+        # Don't use this for now.
+        negVert = numpy.where(faultNormal[:,2] < 0.0)
+        if (negVert[0].shape[0] > 0):
+            refDir = numpy.array([0.0, 0.0, 1.0], dtype=numpy.float64)
+            faultNormal[negVert,:] *= -1.0
+            faultStrike = numpy.cross(refDir, faultNormal)
+            faultStrike /= numpy.linalg.norm(faultStrike, axis=1).reshape(self.numFaultVerts, 1)
+            faultDip = numpy.cross(faultNormal, faultStrike)
+            faultDip /= numpy.linalg.norm(faultDip, axis=1).reshape(self.numFaultVerts, 1)
+        """
+        #**************** End experiment. *********************
 
         # Get fault info from updip fault info file.
         udInfoBase = self.udImpulseFile.rstrip('.h5')
@@ -1061,16 +1137,34 @@ class Py2Def(Application):
 
         print("      Correlating left-lateral and updip fault coordinates:")
         sys.stdout.flush()
-        distanceFC = scipy.spatial.distance.cdist(self.faultCoords, faultCoordsFUD)
-        minIndicesFC = numpy.argmin(distanceFC, axis=1)
-        coordsFDiff = self.faultCoords - faultCoordsFUD[minIndicesFC,:]
+        distanceFCLU = scipy.spatial.distance.cdist(self.faultCoords, faultCoordsFUD)
+        minIndicesFCLU = numpy.argmin(distanceFCLU, axis=1)
+        coordsFDiff = self.faultCoords - faultCoordsFUD[minIndicesFCLU,:]
         coordsFNorm = numpy.linalg.norm(coordsFDiff)
         if (coordsFNorm > self.epsilon):
             msg = "Different coordinates for updip and left-lateral impulses!"
             raise ValueError(msg)
         dataIFUD.close()
 
-        return (faultNormal, faultStrike, faultDip, minIndicesFC)
+        if (self.defnodeFaultSlipType == '3d'):
+            # Get fault info from normal fault info file.
+            nmInfoBase = self.nmImpulseFile.rstrip('.h5')
+            nmImpulseInfoFile = nmInfoBase + '_info.h5'
+            dataIFNM = h5py.File(nmImpulseInfoFile, 'r')
+            faultCoordsFNM = dataIFNM['geometry/vertices'][:]
+
+            print("      Correlating left-lateral and fault-normal fault coordinates:")
+            sys.stdout.flush()
+            distanceFCLN = scipy.spatial.distance.cdist(self.faultCoords, faultCoordsFNM)
+            minIndicesFCLN = numpy.argmin(distanceFCLN, axis=1)
+            coordsFDiff = self.faultCoords - faultCoordsFNM[minIndicesFCLN,:]
+            coordsFNorm = numpy.linalg.norm(coordsFDiff)
+            if (coordsFNorm > self.epsilon):
+                msg = "Different coordinates for fault-normal and left-lateral impulses!"
+                raise ValueError(msg)
+            dataIFNM.close()
+
+        return (faultNormal, faultStrike, faultDip, minIndicesFCLU, minIndicesFCLN)
 
 
     def _initializeFaultArrays(self):
@@ -1084,10 +1178,15 @@ class Py2Def(Application):
         self.udContribE = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
         self.llContribN = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
         self.udContribN = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
+        if (self.defnodeFaultSlipType == '3d'):
+            self.nmContrib = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
+            self.nmContribE = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
+            self.nmContribN = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
         self.strikeDeg = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
         self.dipDeg = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
         self.rakeDegE = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
         self.rakeDegN = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
+        self.rakeDeg = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
         if (self.gfType == 'defnode'):
             if (self.useGps):
                 self.pyEastGPSGf = numpy.zeros((self.numImpulses, self.numGpsSites, 2), dtype=numpy.float64)
@@ -1111,6 +1210,7 @@ class Py2Def(Application):
         """
         print("    Getting PyLith nonzero impuse values:")
 
+        slipNMNZ = None
         # Read impulses.
         # Trying new method using read_direct.
         dataFLL = h5py.File(self.llImpulseFile, 'r')
@@ -1131,7 +1231,16 @@ class Py2Def(Application):
         slipLLNZ = slipLL.nonzero()
         slipUDNZ = slipUD.nonzero()
 
-        return (slipLLNZ, slipUDNZ)
+        if (self.defnodeFaultSlipType == '3d'):
+            dataFNM = h5py.File(self.nmImpulseFile, 'r')
+            print("      Reading fault-normal fault impulses:")
+            slipNM = numpy.zeros(shape, dtype=numpy.float64)
+            dataFNM['vertex_fields/slip'].read_direct(slipNM)
+            slipNM = slipNM[:,:,2]
+            dataFNM.close()
+            slipNMNZ = slipNM.nonzero()
+
+        return (slipLLNZ, slipUDNZ, slipNMNZ)
     
     
     def _readPyGFDefnode(self):
@@ -1146,13 +1255,13 @@ class Py2Def(Application):
         sys.stdout.flush()
 
         # Open response files and get coordinates and values.
-        (responseValsLL, responseValsUD) = self._getResponses()
+        (responseValsLL, responseValsUD, responseValsNM) = self._getResponses()
 
         # Get indices of desired responses.
         (self.gpsIndices, self.insarIndices, self.upIndices) = self._getResponseIndices()
 
         # Get fault info from left-lateral fault info file.
-        (faultNormal, faultStrike, faultDip, minIndicesFC) = self._getFaultInfo()
+        (faultNormal, faultStrike, faultDip, minIndicesFCLU, minIndicesFCLN) = self._getFaultInfo()
 
         # Create fault and impulse arrays.
         self._initializeFaultArrays()
@@ -1160,10 +1269,11 @@ class Py2Def(Application):
         printIncr = 100
         Ux = 1.0
         Uy = 1.0
+        Uz = 0.0
         backSlip = -1.0
 
         # Get nonzero impulses.
-        (slipLLNZ, slipUDNZ) = self._getImpulses()
+        (slipLLNZ, slipUDNZ, slipNMNZ) = self._getImpulses()
 
         print("    Computing Green's functions in Defnode coordinate system:")
         
@@ -1176,56 +1286,88 @@ class Py2Def(Application):
                 msg = "Impulse # %d does not match LL impulse # %d." % (impulse, impulseNumLL)
                 raise ValueError(msg)
             vertNumLL = slipLLNZ[1][impulseNumLL]
-            vertNumUD = minIndicesFC[vertNumLL]
+            vertNumUD = minIndicesFCLU[vertNumLL]
             impulseNumUD = numpy.argwhere(slipUDNZ[1][:] == vertNumUD)[0][0]
             self.impulseVerts.append(vertNumLL)
 
             responseLL = self.gfScale * responseValsLL[impulseNumLL,:,:]
             responseUD = self.gfScale * responseValsUD[impulseNumUD,:,:]
+            if (self.defnodeFaultSlipType == '3d'):
+                vertNumNM = minIndicesFCLN[vertNumLL]
+                impulseNumNM = numpy.argwhere(slipNMNZ[1][:] == vertNumNM)[0][0]
+                responseNM = self.gfScale * responseValsNM[impulseNumNM,:,:]
+
             if (self.useGps):
                 gpsResponseLL = responseLL[self.gpsIndices,0:2]
                 gpsResponseUD = responseUD[self.gpsIndices,0:2]
+                if (self.defnodeFaultSlipType == '3d'):
+                    gpsResponseNM = responseNM[self.gpsIndices,0:2]
             if (self.useUp):
                 upResponseLL = responseLL[self.upIndices,2]
                 upResponseUD = responseUD[self.upIndices,2]
+                if (self.defnodeFaultSlipType == '3d'):
+                    upResponseNM = responseNM[self.upIndices,2]
       
             # Get E and N vectors in fault plane.
             # Rob's method (I think).
             normal = faultNormal[self.impulseVerts[impulse],:]
             strike = faultStrike[self.impulseVerts[impulse],:]
             dip = faultDip[self.impulseVerts[impulse],:]
-            dipAng = math.acos(dip[2])
+            dipAng = math.acos(dip[2]) - 0.5*math.pi
             strikeAng = math.pi + math.atan2(strike[0], strike[1])
             self.strikeDeg[vertNumLL] = math.degrees(strikeAng)
-            self.dipDeg[vertNumLL] = math.degrees(dipAng) - 90.0
+            self.dipDeg[vertNumLL] = math.degrees(dipAng)
             UxpE = Ux * math.cos(strikeAng)
             UypE = Ux * math.sin(strikeAng)
+            UzpE = Uz
             U1E = UypE
             U2E = -UxpE
+            U3E = UzpE
             UxpN = -Uy * math.sin(strikeAng)
             UypN = Uy * math.cos(strikeAng)
+            UzpN = Uz
             U1N = UypN
             U2N = -UxpN
+            U3N = UzpN
+            if (self.defnodeFaultSlipType == '3d'):
+                U3E = UxpE*math.sin(dipAng)
+                U2E *= math.cos(dipAng)
+                U3N = UxpN*math.sin(dipAng)
+                U2N *= math.cos(dipAng)
+
             U1 = U1E + U1N
             U2 = U2E + U2N
+            U3 = U3E + U3N
             rakeE = math.degrees(math.atan2(U2E, U1E))
             rakeN = math.degrees(math.atan2(U2N, U1N))
+            rake = math.degrees(math.atan2(U2, U1))
 
             self.rakeDegE[vertNumLL] = rakeE
             self.rakeDegN[vertNumLL] = rakeN
+            self.rakeDeg[vertNumLL] = rake
             self.llContrib[vertNumLL] = U1
             self.udContrib[vertNumLL] = U2
             self.llContribE[vertNumLL] = U1E
             self.llContribN[vertNumLL] = U1N
             self.udContribE[vertNumLL] = U2E
             self.udContribN[vertNumLL] = U2N
+            if (self.defnodeFaultSlipType == '3d'):
+                self.nmContrib[vertNumLL] = U3
+                self.nmContribE[vertNumLL] = U3E
+                self.nmContribN[vertNumLL] = U3N
 
             if (self.useGps):
                 self.pyEastGPSGf[impulse,:,:] = backSlip * (U1E * gpsResponseLL + U2E*gpsResponseUD)
                 self.pyNorthGPSGf[impulse,:,:] = backSlip * (U1N * gpsResponseLL + U2N*gpsResponseUD)
+                if (self.defnodeFaultSlipType == '3d'):
+                    self.pyEastGPSGf[impulse,:,:] = backSlip * (U1E * gpsResponseLL + U2E*gpsResponseUD + U3E*gpsResponseNM)
+                    self.pyNorthGPSGf[impulse,:,:] = backSlip * (U1N * gpsResponseLL + U2N*gpsResponseUD + U3N*gpsResponseNM)
             if (self.useUp):
                 self.pyEastUpGf[impulse,:] = backSlip * (U1E * upResponseLL + U2E*upResponseUD)
                 self.pyNorthUpGf[impulse,:] = backSlip * (U1N * upResponseLL + U2N*upResponseUD)
+                if (self.defnodeFaultSlipType == '3d'):
+                    self.pyEastUpGf[impulse,:] = backSlip * (U1E * upResponseLL + U2E*upResponseUD + U3E*upResponseNM)
+                    self.pyNorthUpGf[impulse,:] = backSlip * (U1N * upResponseLL + U2N*upResponseUD + U3N*upResponseNM)
 
         numImpulseIndices = len(self.impulseVerts)
         uniqueIndices = set(self.impulseVerts)
@@ -1251,23 +1393,24 @@ class Py2Def(Application):
         sys.stdout.flush()
 
         # Open response files and get coordinates and values.
-        (responseValsLL, responseValsUD) = self._getResponses()
+        (responseValsLL, responseValsUD, responseValsNM) = self._getResponses()
 
         # Get indices of desired responses.
         (self.gpsIndices, self.insarIndices, self.upIndices) = self._getResponseIndices()
 
         # Get fault info from left-lateral fault info file.
-        (faultNormal, faultStrike, faultDip, minIndicesFC) = self._getFaultInfo()
+        (faultNormal, faultStrike, faultDip, minIndicesFCLU, minIndicesFCLN) = self._getFaultInfo()
 
         # Create fault and impulse arrays.
         self._initializeFaultArrays()
         printIncr = 100
         Ux = 1.0
         Uy = 1.0
+        Uz = 0.0
         backSlip = -1.0
 
         # Get nonzero slip impulses.
-        (slipLLNZ, slipUDNZ) = self._getImpulses()
+        (slipLLNZ, slipUDNZ, slipNMNZ) = self._getImpulses()
 
         print("    Computing Green's functions in TDefnode coordinate system:")
         
@@ -1280,56 +1423,89 @@ class Py2Def(Application):
                 msg = "Impulse # %d does not match LL impulse # %d." % (impulse, impulseNumLL)
                 raise ValueError(msg)
             vertNumLL = slipLLNZ[1][impulseNumLL]
-            vertNumUD = minIndicesFC[vertNumLL]
+            vertNumUD = minIndicesFCLU[vertNumLL]
             impulseNumUD = numpy.argwhere(slipUDNZ[1][:] == vertNumUD)[0][0]
             self.impulseVerts.append(vertNumLL)
 
             responseLL = self.gfScale * responseValsLL[impulseNumLL,:,:]
             responseUD = self.gfScale * responseValsUD[impulseNumUD,:,:]
+            if (self.defnodeFaultSlipType == '3d'):
+                vertNumNM = minIndicesFCLN[vertNumLL]
+                impulseNumNM = numpy.argwhere(slipNMNZ[1][:] == vertNumNM)[0][0]
+                responseNM = self.gfScale * responseValsNM[impulseNumNM,:,:]
+
             if (self.useGps):
                 gpsResponseLL = responseLL[self.gpsIndices,0:3]
                 gpsResponseUD = responseUD[self.gpsIndices,0:3]
+                if (self.defnodeFaultSlipType == '3d'):
+                    gpsResponseNM = responseNM[self.gpsIndices,0:3]
             if (self.useInsar):
                 insarResponseLL = responseLL[self.insarIndices,0:3]
                 insarResponseUD = responseUD[self.insarIndices,0:3]
+                if (self.defnodeFaultSlipType == '3d'):
+                    insarResponseNM = responseNM[self.insarIndices,0:3]
       
             # Get E and N vectors in fault plane.
             # Rob's method (I think).
             normal = faultNormal[self.impulseVerts[impulse],:]
             strike = faultStrike[self.impulseVerts[impulse],:]
             dip = faultDip[self.impulseVerts[impulse],:]
-            dipAng = math.acos(dip[2])
+            dipAng = math.acos(dip[2]) - 0.5*math.pi
             strikeAng = math.pi + math.atan2(strike[0], strike[1])
             self.strikeDeg[vertNumLL] = math.degrees(strikeAng)
-            self.dipDeg[vertNumLL] = math.degrees(dipAng) - 90.0
+            self.dipDeg[vertNumLL] = math.degrees(dipAng)
             UxpE = Ux * math.cos(strikeAng)
             UypE = Ux * math.sin(strikeAng)
+            UzpE = Uz
             U1E = UypE
             U2E = -UxpE
+            U3E = UzpE
             UxpN = -Uy * math.sin(strikeAng)
             UypN = Uy * math.cos(strikeAng)
+            UzpN = Uz
             U1N = UypN
             U2N = -UxpN
+            U3N = UzpN
+            if (self.defnodeFaultSlipType == '3d'):
+                U3E = UxpE*math.sin(dipAng)
+                U2E *= math.cos(dipAng)
+                U3N = UxpN*math.sin(dipAng)
+                U2N *= math.cos(dipAng)
+
             U1 = U1E + U1N
             U2 = U2E + U2N
+            U3 = U3E + U3N
             rakeE = math.degrees(math.atan2(U2E, U1E))
             rakeN = math.degrees(math.atan2(U2N, U1N))
+            rake = math.degrees(math.atan2(U2, U1))
 
             self.rakeDegE[vertNumLL] = rakeE
             self.rakeDegN[vertNumLL] = rakeN
+            self.rakeDeg[vertNumLL] = rake
             self.llContrib[vertNumLL] = U1
             self.udContrib[vertNumLL] = U2
             self.llContribE[vertNumLL] = U1E
             self.llContribN[vertNumLL] = U1N
             self.udContribE[vertNumLL] = U2E
             self.udContribN[vertNumLL] = U2N
+            if (self.defnodeFaultSlipType == '3d'):
+                self.nmContrib[vertNumLL] = U3
+                self.nmContribE[vertNumLL] = U3E
+                self.nmContribN[vertNumLL] = U3N
 
             if (self.useGps):
                 self.pyEastGPSGf[impulse,:,:] = backSlip * (U1E * gpsResponseLL + U2E*gpsResponseUD)
                 self.pyNorthGPSGf[impulse,:,:] = backSlip * (U1N * gpsResponseLL + U2N*gpsResponseUD)
+                if (self.defnodeFaultSlipType == '3d'):
+                    self.pyEastGPSGf[impulse,:,:] = backSlip * (U1E * gpsResponseLL + U2E*gpsResponseUD + U3E*gpsResponseNM)
+                    self.pyNorthGPSGf[impulse,:,:] = backSlip * (U1N * gpsResponseLL + U2N*gpsResponseUD + U3N*gpsResponseNM)
+
             if (self.useInsar):
                 self.pyEastInsarGf[impulse,:,:] = backSlip * (U1E * insarResponseLL + U2E*insarResponseUD)
                 self.pyNorthInsarGf[impulse,:,:] = backSlip * (U1N * insarResponseLL + U2N*insarResponseUD)
+                if (self.defnodeFaultSlipType == '3d'):
+                    self.pyEastInsarGf[impulse,:,:] = backSlip * (U1E * insarResponseLL + U2E*insarResponseUD + U3E*insarResponseNM)
+                    self.pyNorthInsarGf[impulse,:,:] = backSlip * (U1N * insarResponseLL + U2N*insarResponseUD + U3N*insarResponseNM)
 
         numImpulseIndices = len(self.impulseVerts)
         uniqueIndices = set(self.impulseVerts)
