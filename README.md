@@ -4,3 +4,6 @@ Scripts and files to use PyLith-generated Green's functions with TDefnode for SE
 
 First, cd into mesh directory and follow instructions in the README there.
 Next, cd into data directory and follow instructions in the README there.
+Next, cd into tdefnode directory and follow instructions in the README there.
+Next, cd into config directory and follow instructions in the README there.
+Next, cd into greensfns directory and follow instructions in the README there.
