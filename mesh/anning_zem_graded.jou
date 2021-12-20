@@ -18,13 +18,6 @@ import Cubit 'anning_zem_geometry.cub'
 # Set meshing scheme and sizing function.
 # ----------------------------------------------------------------------
 volume all scheme tetmesh
-# surface all scheme trimesh
-# set import mesh vertex tolerance 200.0
-# set import mesh curve tolerance 200.0
-# set import mesh surface tolerance 200.0
-
-# set import mesh use nodeset associativity TRUE
-# set debug 120 on
 import sizing function "anning_zem_var_lev1.exo" block 1 variable "cell_size" time 0.0
 
 volume all sizing function type exodus
@@ -34,15 +27,6 @@ curve all scheme stride
 # ----------------------------------------------------------------------
 # Create volume mesh
 # ----------------------------------------------------------------------
-# mesh surface all
-# surface all smooth scheme condition number beta 2.0 cpu 3
-# smooth surface all
-# smooth surface all
-# smooth surface all
-# collapse tri 251620
-# smooth surface all
-# smooth surface all
-
 mesh volume all
 
 # ----------------------------------------------------------------------
@@ -54,10 +38,12 @@ remesh tet quality condition no greater than 2.0 inflate 3
 volume all smooth scheme condition number beta 2.0 cpu 5
 set debug 91 on
 smooth volume all
-# volume all smooth scheme condition number beta 1.8 cpu 5
-# smooth volume all
-# volume all smooth scheme condition number beta 1.8 cpu 10
-# smooth volume 74
+volume all smooth scheme condition number beta 1.8 cpu 5
+smooth volume all
+volume all smooth scheme condition number beta 1.8 cpu 10
+smooth volume 74
+volume all smooth scheme condition number beta 1.8 cpu 5
+smooth volume all
 
 # ----------------------------------------------------------------------
 # Create nodesets and material blocks.
@@ -68,4 +54,3 @@ playback 'anning_zem_bc.jou'
 # Export mesh.
 # ----------------------------------------------------------------------
 export mesh "anning_zem_mesh_graded.exo" dimension 3 overwrite
-
