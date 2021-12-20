@@ -6,8 +6,5 @@ From Rui:
     Please note that I set the interation control command to be 'ic: 0' in this specific model so that no inversion will be performed.
 
 NOTE:
-I have created two versions of pylith.dfn:
-pylith_shear.dfn:  In this case, no fault-normal dislocations are used for Anning-Zem.
-pylith_3d.dfn:  In this case, fault-normal dislocations are used for Anning-Zem.
-
-To use the different versions, first delete both the g11 directory and the py03 directory.
+There is now just a single version of pylith.tdfn (with 3d slip for AZ fault), since that now seems
+to work OK with modified version of py2def.py.
