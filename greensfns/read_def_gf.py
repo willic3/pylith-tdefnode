@@ -118,7 +118,34 @@ class ReadDefGf(Application):
         self.gfInsarFmt = FortranRecordReader(gfInsarFmt)
         self.gfUpFmt = FortranRecordReader(gfUpFmt)
 
+        pathName = os.path.dirname(self.vtkImpulseRoot)
+        outputDir = self._checkDir(pathName)
+        pathName = os.path.dirname(self.vtkResponseRoot)
+        outputDir = self._checkDir(pathName)
+
         return
+
+
+    def _checkDir(self, subDir):
+        """
+        Function to see if directory exists and create it if necessary.
+        """
+        if os.path.isabs(subDir):
+            newDir = subDir
+        else:
+            newDir = os.path.join(os.getcwd(), subDir)
+
+        testDir = os.path.isdir(newDir)
+        testFile = os.path.isfile(newDir)
+
+        if (testDir == False):
+            if (testFile == True):
+                msg = "Subdirectory exists as a file."
+                raise ValueError(msg)
+            else:
+                os.makedirs(newDir)
+
+        return newDir
 
 
     def _getHeaderInfo(self, gfType):

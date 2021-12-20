@@ -253,6 +253,28 @@ class Py2Def(Application):
         return
       
 
+    def _checkDir(self, subDir):
+        """
+        Function to see if directory exists and create it if necessary.
+        """
+        if os.path.isabs(subDir):
+            newDir = subDir
+        else:
+            newDir = os.path.join(os.getcwd(), subDir)
+
+        testDir = os.path.isdir(newDir)
+        testFile = os.path.isfile(newDir)
+
+        if (testDir == False):
+            if (testFile == True):
+                msg = "Subdirectory exists as a file."
+                raise ValueError(msg)
+            else:
+                os.makedirs(newDir)
+
+        return newDir
+
+
     def _writeImpulseInfo(self):
         """
         Function to write impulse information to a VTK file.
@@ -261,6 +283,8 @@ class Py2Def(Application):
         print("  Writing impulse information:")
         sys.stdout.flush()
 
+        pathName = os.path.dirname(self.impulseInfoFile)
+        outputDir = self._checkDir(pathName)
         vtkHead = "# vtk DataFile Version 2.0\n" + \
                   "Impulse information for PyLith to Defnode conversion.\n" + \
                   "ASCII\n" + \
@@ -378,6 +402,8 @@ class Py2Def(Application):
         print("  Writing unmatched site coordinates:")
         sys.stdout.flush()
 
+        pathName = os.path.dirname(self.responseInfoRoot)
+        outputDir = self._checkDir(pathName)
         if (self.useGps):
             numUnmatchedGPSSites = self.unmatchedGPSSiteCoords.shape[0]
             print("    Number of unmatched GPS sites:  %d" % numUnmatchedGPSSites)
@@ -413,6 +439,8 @@ class Py2Def(Application):
         print("  Writing response information:")
         sys.stdout.flush()
 
+        pathName = os.path.dirname(self.responseInfoRoot)
+        outputDir = self._checkDir(pathName)
         if (self.useGps):
             gpsFile = self.responseInfoRoot + "_gps.vtk"
             vtkHeadG = "# vtk DataFile Version 2.0\n" + \
@@ -490,6 +518,7 @@ class Py2Def(Application):
         gfFmtGPS = FortranRecordWriter(gfFortranGPS)
         gPref = 'G'
         iPref = 'I'
+        outputDir = self._checkDir(self.gfOutputDirectory)
 
         # Loop over number of along-strike and downdip nodes.
         for asNode in range(self.numAsNodes):
@@ -555,6 +584,7 @@ class Py2Def(Application):
         gfFmtUp = FortranRecordWriter(gfFortranUp)
         gPref = 'G'
         uPref = 'U'
+        outputDir = self._checkDir(self.gfOutputDirectory)
 
         # Loop over number of along-strike and downdip nodes.
         for asNode in range(self.numAsNodes):
