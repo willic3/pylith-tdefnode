@@ -52,7 +52,7 @@ nodeset 15 name "face_zneg"
 group "fault" add node in surface 90 to 133
 
 group "fault_top" add node in curve 270 272 274 276 278 280 282 284 286 288 290 292 294 296 298 300 302 304 306 308 310 312
-group "fault_bot" add node in curve 266 263 260 257 254 251 248 245 242 239 236 233 230 227 224 221 218 217 212 209 206 205 
+group "fault_bot" add node in curve 266 263 260 257 254 251 248 245 242 239 236 233 230 227 224 221 218 215 212 209 206 205 
 
 group "fault_south" add node in curve 268 313
 group "fault_north" add node in curve 202 269
@@ -92,6 +92,7 @@ nodeset 106 name "inner_east"
 
 nodeset 107 group inner_west
 nodeset 107 name "inner_west"
+
 
 
 

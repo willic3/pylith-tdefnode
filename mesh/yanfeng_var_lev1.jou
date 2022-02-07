@@ -20,9 +20,10 @@ ${dxInner=2.0*km}
 ${dxMid=4.0*km}
 ${dxOuter=60.0*km}
 surface 76 78 77 75 74 size {dxOuter}
-surface 136 182 80 size {dxMid}
+surface 136 80 size {dxMid}
 surface 90 to 133 size {dxInner}
-curve 182 316 482 scheme bias
+surface 182 size {dxInner}
+curve 432 433 182 165 316 314 scheme bias
 
 # ----------------------------------------------------------------------
 # Create volume mesh
@@ -53,6 +54,7 @@ playback 'yanfeng_bc.jou'
 # Export mesh.
 # ----------------------------------------------------------------------
 export mesh "yanfeng_var_lev1.exo" dimension 3 overwrite
+
 
 
 
