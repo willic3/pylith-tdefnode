@@ -1,0 +1,58 @@
+# ----------------------------------------------------------------------
+# Set units to SI.
+# ----------------------------------------------------------------------
+reset
+undo off
+set crash save off
+#{Units('si')}
+
+# ----------------------------------------------------------------------
+# Generate geometry
+# ----------------------------------------------------------------------
+import Cubit 'lijiang_geometry.cub'
+
+# ----------------------------------------------------------------------
+# Set meshing scheme and sizing.
+# ----------------------------------------------------------------------
+volume all scheme tetmesh
+# surface all scheme trimesh
+${dxInner=2.0*km}
+${dxMid=4.0*km}
+${dxOuter=60.0*km}
+surface 40 42 41 39 38 size {dxOuter}
+surface 44 46 size {dxMid}
+surface 54 to 82 size {dxInner}
+curve 192 264 191 266  scheme bias
+
+# ----------------------------------------------------------------------
+# Create volume mesh
+# ----------------------------------------------------------------------
+# mesh surface all
+# surface all smooth scheme condition number beta 2.0 cpu 5
+# surface all smooth scheme centroid area pull free
+# smooth surface all
+
+mesh volume all
+
+# ----------------------------------------------------------------------
+# Do one round of smoothing.
+# ----------------------------------------------------------------------
+# Don't do smoothing for initial (level 1) mesh.
+# remesh tet quality condition no greater than 3 inflate 2
+# cleanup volume all
+# volume all smooth scheme condition number beta 2.0 cpu 5
+# set debug 91 on
+# smooth volume all
+
+# ----------------------------------------------------------------------
+# Create nodesets and material blocks.
+# ----------------------------------------------------------------------
+playback 'lijiang_bc.jou'
+
+# ----------------------------------------------------------------------
+# Export mesh.
+# ----------------------------------------------------------------------
+export mesh "lijiang_var_lev1.exo" dimension 3 overwrite
+
+
+
