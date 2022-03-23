@@ -306,7 +306,7 @@ values = [{'name': "vp",
            'units': "km/s",
            'data': vsMerged},
           {'name': "density",
-           'units': "kg/m**3",
+           'units': "g/cm**3",
            'data': densityMerged}]
 writer.write({'points': coordsNewGeog,
               'x': lonsNew,
