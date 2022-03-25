@@ -8,6 +8,7 @@ import pdb
 import os
 import glob
 import numpy
+import scipy.spatial
 from pyproj import Proj
 from pyproj import transform
 from fortranformat import FortranRecordReader
@@ -31,6 +32,7 @@ class ReadDefGf(Application):
     ## @li \b defnode_fault_num Fault number for which to read GF.
     ## @li \b vtk_impulse_root Root filename for VTK impulse output.
     ## @li \b vtk_response_root Root filename for VTK response output.
+    ## @li \b vtk_response_prefix Prefix given to response output names.
     ## @li \b output_projection Proj4 parameters defining output projection.
 
     defnodeGfDir = pyre.inventory.str("defnode_gf_dir", default="m10b")
@@ -47,6 +49,9 @@ class ReadDefGf(Application):
 
     vtkResponseRoot = pyre.inventory.str("vtk_response_root", default="greensfns_response")
     vtkResponseRoot.meta['tip'] = "Root filename for VTK response output."
+
+    vtkResponsePrefix = pyre.inventory.str("vtk_response_prefix", default="tdef_")
+    vtkResponsePrefix.meta['tip'] = "Prefix given to response output names."
 
     outputProjection = pyre.inventory.str("output_projection",
                                           default="+proj=tmerc +lon_0=175.45 +lat_0=-40.825 +ellps=WGS84 +datum=WGS84 +k=0.9996 +towgs84=0.0,0.0,0.0")
@@ -189,7 +194,7 @@ class ReadDefGf(Application):
         self.numGpsFiles = len(self.GpsFiles)
         if (self.numGpsFiles != 0):
             self.numImpulses = self.numGpsFiles
-            (maxNumGpsSites, maxSitesGf) = self._getHeaderInfo('gps')
+            (self.numGpsResponses, self.gpsReprSite) = self._getHeaderInfo('gps')
 
         if (self.gfType == 'tdefnode'):
             searchInsar = os.path.join(totalGfPath, faultString + '*i')
@@ -202,8 +207,7 @@ class ReadDefGf(Application):
                     raise ValueError(msg)
             if (self.numInsarFiles != 0):
                 self.numImpulses = self.numInsarFiles
-            if (self.numGpsFiles == 0):
-                (maxNumGpsSites, maxSitesGf) = self._getHeaderInfo('insar')
+                (self.numInsarResponses, self.insarReprSite) = self._getHeaderInfo('insar')
 
 
         if (self.gfType == 'defnode'):
@@ -219,11 +223,76 @@ class ReadDefGf(Application):
             if (self.numUpFiles != 0):
                 self.numImpulses = self.numUpFiles
             if (self.numGpsFiles == 0):
-                (maxNumGpsSites, maxSitesGf) = self._getHeaderInfo('up')
+                (self.numUpResponses, self.upReprSite) = self._getHeaderInfo('up')
 
+        if (self.numGpsFiles != 0):
+            self.gpsResponseCoordsGeog = self._getSiteCoords(self.GpsFiles[self.gpsReprSite], 'gps')
+            self.gpsResponseCoords = numpy.zeros((self.numGpsResponses, 3), dtype=numpy.float64)
+            (self.gpsResponseCoords[:,0], self.gpsResponseCoords[:,1]) = transform(
+                self.projWGS84, self.outProj, self.gpsResponseCoordsGeog[:,0], self.gpsResponseCoordsGeog[:,1])
+            self.gpsResponseTree = scipy.spatial.cKDTree(self.gpsResponseCoordsGeog)
+        if (self.numInsarFiles != 0):
+            self.insarResponseCoordsGeog = self._getSiteCoords(self.InsarFiles[self.insarReprSite], 'insar')
+            self.insarResponseCoords = numpy.zeros((self.numInsarResponses, 3), dtype=numpy.float64)
+            (self.insarResponseCoords[:,0], self.insarResponseCoords[:,1]) = transform(
+                self.projWGS84, self.outProj, self.insarResponseCoordsGeog[:,0], self.insarResponseCoordsGeog[:,1])
+            self.insarResponseTree = scipy.spatial.cKDTree(self.insarResponseCoordsGeog)
+        if (self.numUpFiles != 0):
+            self.upResponseCoordsGeog = self._getSiteCoords(self.UpFiles[self.upReprSite], 'up')
+            self.upResponseCoords = numpy.zeros((self.numUpResponses, 3), dtype=numpy.float64)
+            (self.upResponseCoords[:,0], self.upResponseCoords[:,1]) = transform(
+                self.projWGS84, self.outProj, self.upResponseCoordsGeog[:,0], self.upResponseCoordsGeog[:,1])
+            self.upResponseTree = scipy.spatial.cKDTree(self.upResponseCoordsGeog)
         return
   
     
+    def _getSiteCoords(self, fileName, dataType):
+        """
+        Get site coordinates from the given file.
+        """
+        lineFmt = self.gfGpsFmt
+        if (dataType == 'gps'):
+            lineFmt = self.gfGpsFmt
+        elif (dataType == 'insar'):
+            lineFmt = self.gfInsarFmt
+        elif (dataType == 'up'):
+            lineFmt = self.gfUpFmt
+
+        f = open(fileName, 'r')
+        lines = f.readlines()
+        numLines = len(lines)
+        numSites = numLines - 1
+        coords = numpy.zeros((numSites, 2), dtype=numpy.float64)
+        siteNum = 0
+
+        for lineNum in range(1, numLines):
+            vars = lineFmt.read(lines[lineNum])
+            coords[siteNum,0] = vars[1]
+            coords[siteNum,1] = vars[2]
+            siteNum += 1
+
+        f.close()
+
+        return coords
+
+
+    def _matchCoords(self, lon, lat, refCoordTree):
+        """
+        Match lon/lat coords from file to reference coordinates.
+        """
+
+        eps = 0.001
+        coordsFind = numpy.column_stack((lon, lat))
+        coordInds = refCoordTree.query_ball_point(coordsFind, eps)
+        checkLen = numpy.array([len(i)>1 for i in coordInds])
+        if (numpy.any(checkLen)):
+            msg = 'More than one matching site coordinate found.'
+            raise ValueError(msg)
+        matchInds = numpy.array([i[0] for i in coordInds])
+
+        return matchInds
+
+
     def _readUpFile(self, fileNum):
         """
         Function to read a Defnode Up GF file.
@@ -252,30 +321,33 @@ class ReadDefGf(Application):
             (pref, lonR[respNum], latR[respNum], zRespE[respNum], zRespN[respNum], stn) = self.gfUpFmt.read(lines[lineNum])
 
         i.close()
-      
-        (x, y, z) = transform(self.projWGS84, self.outProj, lonR, latR, elevR)
-        coordsR = numpy.column_stack((x, y, z))
 
+        coordInds = self._matchCoords(lonR, latr, self.upResponseTree)
+        zRespEOut = numpy.zeros(self.numUpResponses, dtype=numpy.float64)
+        zRespNOut = numpy.zeros(self.numUpResponses, dtype=numpy.float64)
+        zRespEOut[coordInds] = zRespE
+        zRespNOut[coordInds] = zRespN
+      
         vtkHead = "# vtk DataFile Version 2.0\n" + \
             "Response for Defnode Up GF\n" + \
             "ASCII\n" + \
             "DATASET POLYDATA\n" + \
-            "POINTS %d double\n" % numSites
+            "POINTS %d double\n" % self.numUpResponses
 
         o.write(vtkHead)
-        numpy.savetxt(o, coordsR)
+        numpy.savetxt(o, self.upResponseCoords)
 
+        responseNameE = self.vtkResponsePrefix + "z_response_e"
+        responseNameN = self.vtkResponsePrefix + "z_response_n"
         vtkHead2 = "POINT_DATA %d\n" % numSites
-        vtkHead2a = "SCALARS z_response_e float 1\n" + \
-            "LOOKUP_TABLE default\n"
+        vtkHead2a = "SCALARS %s float 1\nLOOKUP_TABLE default\n" % responseNameE
         o.write(vtkHead2)
         o.write(vtkHead2a)
-        numpy.savetxt(o, zRespE)
+        numpy.savetxt(o, zRespEOut)
 
-        vtkHead3 = "SCALARS z_response_n float 1\n" + \
-            "LOOKUP_TABLE default\n"
+        vtkHead3 = "SCALARS %s float 1\nLOOKUP_TABLE default\n" % responseNameN
         o.write(vtkHead3)
-        numpy.savetxt(o, zRespN)
+        numpy.savetxt(o, zRespNOut)
 
         o.close()
         
@@ -287,13 +359,24 @@ class ReadDefGf(Application):
         Function to read a Defnode/TDefnode GF file.
         """
 
+        responseNameE = self.vtkResponsePrefix + "response_e"
+        responseNameN = self.vtkResponsePrefix + "response_n"
+        responseNameT = self.vtkResponsePrefix + "response_total"
         outFile = self.vtkResponseRoot + '_gps_r' + repr(fileNum).rjust(4, '0') + ".vtk"
         vtkInfoLine = "Response for TDefnode GPS GF\n"
         files = self.GpsFiles
+        refCoords = self.gpsResponseCoordsGeog
+        refCoordTree = self.gpsResponseTree
+        outCoords = self.gpsResponseCoords
+        numResponses = self.numGpsResponses
         if (gfType == 'insar'):
             outFile = self.vtkResponseRoot + '_insar_r' + repr(fileNum).rjust(4, '0') + ".vtk"
             vtkInfoLine = "Response for TDefnode InSAR GF\n"
             files = self.InsarFiles
+            refCoords = self.insarResponseCoordsGeog
+            refCoordTree = self.insarResponseTree
+            outCoords = self.insarResponseCoords
+            numResponses = self.numInsarResponses
 
         if (self.gfType == 'defnode'):
             vtkInfoLine = "Response for Defnode GPS GF\n"
@@ -331,32 +414,42 @@ class ReadDefGf(Application):
                  zRespE[respNum], zRespN[respNum]) = self.gfGpsFmt.read(lines[lineNum])
 
         i.close()
+        coordInds = self._matchCoords(lonR, latR, refCoordTree)
+        xRespEOut = numpy.zeros(numResponses, dtype=numpy.float64)
+        yRespEOut = numpy.zeros(numResponses, dtype=numpy.float64)
+        zRespEOut = numpy.zeros(numResponses, dtype=numpy.float64)
+        xRespNOut = numpy.zeros(numResponses, dtype=numpy.float64)
+        yRespNOut = numpy.zeros(numResponses, dtype=numpy.float64)
+        zRespNOut = numpy.zeros(numResponses, dtype=numpy.float64)
+        xRespEOut[coordInds] = xRespE
+        yRespEOut[coordInds] = yRespE
+        zRespEOut[coordInds] = zRespE
+        xRespNOut[coordInds] = xRespN
+        yRespNOut[coordInds] = yRespN
+        zRespNOut[coordInds] = zRespN
       
-        (x, y, z) = transform(self.projWGS84, self.outProj, lonR, latR, elevR)
-        coordsR = numpy.column_stack((x, y, z))
-
         vtkHead = "# vtk DataFile Version 2.0\n" + \
             vtkInfoLine + \
             "ASCII\n" + \
             "DATASET POLYDATA\n" + \
-            "POINTS %d double\n" % numSites
+            "POINTS %d double\n" % numResponses
 
         o.write(vtkHead)
-        numpy.savetxt(o, coordsR)
+        numpy.savetxt(o, outCoords)
 
-        vtkHead2 = "POINT_DATA %d\n" % numSites
-        vtkHead2a = "VECTORS response_e double\n"
+        vtkHead2 = "POINT_DATA %d\n" % numResponses
+        vtkHead2a = "VECTORS %s double\n" % responseNameE
         o.write(vtkHead2)
         o.write(vtkHead2a)
-        responseE = numpy.column_stack((xRespE, yRespE, zRespE))
+        responseE = numpy.column_stack((xRespEOut, yRespEOut, zRespEOut))
         numpy.savetxt(o, responseE)
 
-        vtkHead3 = "VECTORS response_n double\n"
+        vtkHead3 = "VECTORS %s double\n" % responseNameN
         o.write(vtkHead3)
-        responseN = numpy.column_stack((xRespN, yRespN, zRespN))
+        responseN = numpy.column_stack((xRespNOut, yRespNOut, zRespNOut))
         numpy.savetxt(o, responseN)
 
-        vtkHead4 = "VECTORS total_response double\n"
+        vtkHead4 = "VECTORS %s double\n" % responseNameT
         o.write(vtkHead4)
         totResponse = responseE + responseN
         numpy.savetxt(o, totResponse)
