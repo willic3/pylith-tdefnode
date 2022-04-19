@@ -73,8 +73,3 @@ merge all
 # Export volume.
 # ----------------------------------------------------------------------
 save as 'xsh_geometry.cub' overwrite
-
-
-
-
-
