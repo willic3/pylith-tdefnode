@@ -13,7 +13,8 @@ To generate the TDefnode GF, we use the py2def.py script:
 
 This will create a set of TDefnode GF in the pyhom_gf directory, as well
 as information in the p2d_info/pyhom directory. These are VTK files that
-may be viewed in Paraview.
+may be viewed in Paraview. Note that the p2d_az .cfg files differ from
+the others, since they specify 3d slip rather than shear slip.
 
 To compare the PyLith GF with those from TDefnode, we use the read_def_gf.py
 script:
