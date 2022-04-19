@@ -1,0 +1,96 @@
+# ----------------------------------------------------------------------
+# Create blocks for materials
+# ----------------------------------------------------------------------
+block 1 volume all
+block 1 name "domain"
+
+# ----------------------------------------------------------------------
+# Create nodeset for +x face
+# ----------------------------------------------------------------------
+group "face_xpos" add node in surface 72
+nodeset 10 group face_xpos
+nodeset 10 name "face_xpos"
+
+# ----------------------------------------------------------------------
+# Create nodeset for -x face
+# ----------------------------------------------------------------------
+group "face_xneg" add node in surface 70
+nodeset 11 group face_xneg
+nodeset 11 name "face_xneg"
+
+# ----------------------------------------------------------------------
+# Create nodeset for +y face
+# ----------------------------------------------------------------------
+group "face_ypos" add node in surface 71
+nodeset 12 group face_ypos
+nodeset 12 name "face_ypos"
+
+# ----------------------------------------------------------------------
+# Create nodeset for -y face
+# ----------------------------------------------------------------------
+group "face_yneg" add node in surface 69
+nodeset 13 group face_yneg
+nodeset 13 name "face_yneg"
+
+# ----------------------------------------------------------------------
+# Create nodeset for +z face
+# ----------------------------------------------------------------------
+group "face_zpos" add node in surface 83 209 147
+nodeset 14 group face_zpos
+nodeset 14 name "face_zpos"
+
+# ----------------------------------------------------------------------
+# Create nodeset for -z face
+# ----------------------------------------------------------------------
+group "face_zneg" add node in surface 68
+nodeset 15 group face_zneg
+nodeset 15 name "face_zneg"
+
+# ----------------------------------------------------------------------
+# Create nodeset for fault and fault edge
+# ----------------------------------------------------------------------
+group "fault" add node in surface 84 to 143
+
+group "fault_top" add node in curve 305 302 299 296 288 280 272 264 256 248 240 229
+group "fault_bot" add node in curve 216 213 210 207 204 201 198 195 192 189 186 185  
+
+group "fault_south" add node in curve 228 232 235 238 182
+group "fault_north" add node in curve 306 225 222 219 218
+
+group "fault_edge" add node in fault_south
+group "fault_edge" add node in fault_bot
+group "fault_edge" add node in fault_north
+
+nodeset 100 group fault
+nodeset 100 name "fault"
+
+nodeset 101 group fault_edge
+nodeset 101 name "fault_edge"
+
+nodeset 102 group fault_top
+nodeset 102 name "fault_top"
+
+nodeset 103 group fault_bot
+nodeset 103 name "fault_bot"
+
+# ----------------------------------------------------------------------
+# Create nodesets for inner box faces
+# ----------------------------------------------------------------------
+group "inner_top" add node in surface 209 147
+group "inner_bot" add node in surface 211 144
+group "inner_east" add node in surface 74
+group "inner_west" add node in surface 76
+
+nodeset 104 group inner_top
+nodeset 104 name "inner_top"
+
+nodeset 105 group inner_bot
+nodeset 105 name "inner_bot"
+
+nodeset 106 group inner_east
+nodeset 106 name "inner_east"
+
+nodeset 107 group inner_west
+nodeset 107 name "inner_west"
+
+
