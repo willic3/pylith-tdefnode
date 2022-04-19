@@ -1,0 +1,1 @@
+pylith solver_fs1.cfg gf_xiaojiang_nm_heter.cfg --problem=pylith.problems.GreensFns --nodes=48 pylithapp_openmpi_pbs_np48_eth0.cfg --job.name=gf_xiaojiang_nm_heter --job.stdout=gf_xiaojiang_nm_heter.log --job.stderr=gf_xiaojiang_nm_heter.err
