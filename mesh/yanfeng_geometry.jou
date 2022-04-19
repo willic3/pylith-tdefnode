@@ -73,8 +73,3 @@ merge all
 # Export volume.
 # ----------------------------------------------------------------------
 save as 'yanfeng_geometry.cub' overwrite
-
-
-
-
-

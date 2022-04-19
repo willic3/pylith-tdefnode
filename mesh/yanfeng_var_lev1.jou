@@ -23,16 +23,11 @@ surface 76 78 77 75 74 size {dxOuter}
 surface 136 80 size {dxMid}
 surface 90 to 133 size {dxInner}
 surface 182 size {dxInner}
-curve 432 433 182 165 316 314 scheme bias
+curve 432 430 316 scheme bias
 
 # ----------------------------------------------------------------------
 # Create volume mesh
 # ----------------------------------------------------------------------
-# mesh surface all
-# surface all smooth scheme condition number beta 2.0 cpu 5
-# surface all smooth scheme centroid area pull free
-# smooth surface all
-
 mesh volume all
 
 # ----------------------------------------------------------------------
@@ -54,8 +49,3 @@ playback 'yanfeng_bc.jou'
 # Export mesh.
 # ----------------------------------------------------------------------
 export mesh "yanfeng_var_lev1.exo" dimension 3 overwrite
-
-
-
-
-
