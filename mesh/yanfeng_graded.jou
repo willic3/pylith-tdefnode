@@ -48,5 +48,3 @@ playback 'yanfeng_bc.jou'
 # Export mesh.
 # ----------------------------------------------------------------------
 export mesh "yanfeng_mesh_graded.exo" dimension 3 overwrite
-
-
