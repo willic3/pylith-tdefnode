@@ -1,8 +1,8 @@
 This directory contains the .cfg files and some shell scripts needed to
-generate PyLith Green's functions. At present, the directory just
-contains the files to create GF for the Anning-Zem fault assuming
-homogeneous material properties. There are shell scripts for each
-type of Green's function needed:
+generate PyLith Green's functions. There are .cfg and shell scripts for
+each type of GF needed. Note that it is not necessary to generate normal
+GF for any fault other than Anning-Zem, since this is the only fault being
+used in 3D mode within TDefnode.
 
 run_az_ll_homog_workstation.sh: Left-lateral Green's functions.
 run_az_ud_homog_workstation.sh: Updip Green's functions.
@@ -21,3 +21,6 @@ stdout to a log file. For example, under bash, you would do something like:
 
 It is unlikely you would be able to run more than one job at a time, and each
 one will take some time to run.
+
+Note that I have not created all of the workstation scripts, since I am running
+everything on a cluster.

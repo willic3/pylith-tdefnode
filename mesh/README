@@ -21,11 +21,12 @@ for computing Green's functions.  The steps are as follows:
     may be necessary to adjust some of the parameters to get the fault to
     properly intersect your bounding box (e.g., xdim, ydim, etc.).
 
-4.  Create an initial mesh but running Cubit/Trelis with the *_var_lev1.jou
+4.  Create an initial mesh by running Cubit/Trelis with the *_var_lev1.jou
     files. This will create a coarse mesh onto which we can put sizing
     function information. Note that these journal files will call the
     *_bc.jou files, which assign blocks and define nodesets that are
-    needed by PyLith.
+    needed by PyLith. If anything is changed in the geometry file, the
+    other files will probably need to be updated.
 
 5.  Run the create_cell_size_3d.py script to generate sizing function
     information, e.g.:
@@ -43,7 +44,13 @@ for computing Green's functions.  The steps are as follows:
     will read in the sizing function information from the earlier
     mesh and use it to generate a new mesh. Once you've done this
     you should have a nicely graded mesh to use for generating
-    Green's functions.
+    Green's functions. Note that it is generally necessary to look
+    at the mesh quality within Cubit (use the Condition Number metric
+    for all volumes). You should try to have a maximum condition number
+    of 2 or less. Slightly more is OK, but will affect your solution
+    accuracy and computation time.
 
-NOTE:  So far, I have only gone through the above steps for anning_zem.
-       Each fault will need to have this done.
+NOTE:  I have now gone through this procedure for all 6 faults. Note that
+       I had to change the geometry slightly for lijiang, because the
+       original inner box was cutting off a sliver of the fault. All
+       meshes now have max condition numbers of 2.002 or less.

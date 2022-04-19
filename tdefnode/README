@@ -1,3 +1,7 @@
+This directory contains reference information from TDefnode, for comparison
+with PyLith results. The reference Green's functions may be computed in
+directory g11 by running TDefnode.
+
 From Rui:
 (1) To calcualte the green's functions with resolution of 1km*1km, run model 'py03' with the command:
 
