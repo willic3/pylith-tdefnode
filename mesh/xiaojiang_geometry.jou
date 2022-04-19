@@ -73,7 +73,3 @@ merge all
 # Export volume.
 # ----------------------------------------------------------------------
 save as 'xiaojiang_geometry.cub' overwrite
-
-
-
-

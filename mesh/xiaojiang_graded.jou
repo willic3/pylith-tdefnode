@@ -1,0 +1,50 @@
+# ----------------------------------------------------------------------
+# Set units to SI.
+# ----------------------------------------------------------------------
+reset
+undo off
+set crash save off
+#{Units('si')}
+set import mesh nodeset associativity on
+set export mesh nodeset associativity on
+set export mesh nodeset associativity complete on
+
+# ----------------------------------------------------------------------
+# Generate geometry
+# ----------------------------------------------------------------------
+import Cubit 'xiaojiang_geometry.cub'
+
+# ----------------------------------------------------------------------
+# Set meshing scheme and sizing function.
+# ----------------------------------------------------------------------
+volume all scheme tetmesh
+import sizing function "xiaojiang_var_lev1.exo" block 1 variable "cell_size" time 0.0
+
+volume all sizing function type exodus
+surface all sizing function type exodus
+curve all scheme stride
+
+# ----------------------------------------------------------------------
+# Create volume mesh
+# ----------------------------------------------------------------------
+mesh volume all
+
+# ----------------------------------------------------------------------
+# Smooth mesh.
+# ----------------------------------------------------------------------
+remesh tet quality condition no greater than 3.0 inflate 3
+remesh tet quality condition no greater than 2.0 inflate 3
+
+volume all smooth scheme condition number beta 2.0 cpu 5
+set debug 91 on
+smooth volume all
+
+# ----------------------------------------------------------------------
+# Create nodesets and material blocks.
+# ----------------------------------------------------------------------
+playback 'xiaojiang_bc.jou'
+
+# ----------------------------------------------------------------------
+# Export mesh.
+# ----------------------------------------------------------------------
+export mesh "xiaojiang_mesh_graded.exo" dimension 3 overwrite
