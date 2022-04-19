@@ -44,7 +44,7 @@ ${zmove=-0.5*zlen}
 
 brick x {xdim} y {ydim} z {zlen}
 ${idFaultBox=Id("volume")}
-volume {idFaultBox} move x {xmid+2.0*km} y {ymid} z {zmove+0.001}
+volume {idFaultBox} move x {xmid+2.0*km} y {ymid-1.5*km} z {zmove+0.001}
 
 # ----------------------------------------------------------------------
 # Create outer volume.
@@ -73,7 +73,3 @@ merge all
 # Export volume.
 # ----------------------------------------------------------------------
 save as 'lijiang_geometry.cub' overwrite
-
-
-
-

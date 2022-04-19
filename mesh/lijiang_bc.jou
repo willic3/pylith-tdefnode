@@ -35,7 +35,7 @@ nodeset 13 name "face_yneg"
 # ----------------------------------------------------------------------
 # Create nodeset for +z face
 # ----------------------------------------------------------------------
-group "face_zpos" add node in surface 53 86 117
+group "face_zpos" add node in surface 53 87 119
 nodeset 14 group face_zpos
 nodeset 14 name "face_zpos"
 
@@ -49,13 +49,13 @@ nodeset 15 name "face_zneg"
 # ----------------------------------------------------------------------
 # Create nodeset for fault and fault edge
 # ----------------------------------------------------------------------
-group "fault" add node in surface 54 to 82
+group "fault" add node in surface 54 to 83
 
-group "fault_top" add node in curve 152 160 164 168 172 176 180 184 187
-group "fault_bot" add node in curve 158 118 122 125 128 131 134 137 140
+group "fault_top" add node in curve 153 158 162 166 170 174 178 182 186 189
+group "fault_bot" add node in curve 121 122 125 128 131 134 137 140 143 146
 
-group "fault_south" add node in curve 188 148 147 142
-group "fault_north" add node in curve 151 155 159
+group "fault_south" add node in curve 190 149 148
+group "fault_north" add node in curve 152 156 118
 
 group "fault_edge" add node in fault_south
 group "fault_edge" add node in fault_bot
@@ -76,8 +76,8 @@ nodeset 103 name "fault_bot"
 # ----------------------------------------------------------------------
 # Create nodesets for inner box faces
 # ----------------------------------------------------------------------
-group "inner_top" add node in surface 85 116
-group "inner_bot" add node in surface 84 119
+group "inner_top" add node in surface 87 119
+group "inner_bot" add node in surface 84 120
 group "inner_east" add node in surface 44
 group "inner_west" add node in surface 46
 
@@ -92,5 +92,3 @@ nodeset 106 name "inner_east"
 
 nodeset 107 group inner_west
 nodeset 107 name "inner_west"
-
-
