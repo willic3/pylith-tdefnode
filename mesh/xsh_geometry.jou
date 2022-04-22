@@ -34,9 +34,9 @@ ${zmax=BBox_ZMax("group", 2)}
 ${xmid=0.5*(xmin+xmax)}
 ${ymid=0.5*(ymin+ymax)}
 ${zmid=0.5*(zmin+zmax)}
-${xlen=xmax-xmin-2.0*km}
-${ylen=ymax-ymin-2.0*km}
-${zlen=zmax-zmin-2.0*km}
+${xlen=xmax-xmin-1.5*km}
+${ylen=ymax-ymin-1.5*km}
+${zlen=zmax-zmin-1.5*km}
 
 ${xdim=xlen+8.0*km}
 ${ydim=ylen-12.0*km}
@@ -73,3 +73,4 @@ merge all
 # Export volume.
 # ----------------------------------------------------------------------
 save as 'xsh_geometry.cub' overwrite
+
