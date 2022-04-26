@@ -218,8 +218,8 @@ class Py2Def(Application):
 
 
     def main(self):
-        # import pdb
-        # pdb.set_trace()
+        import pdb
+        pdb.set_trace()
         self.projPylith = Proj(self.meshCoordsys)
         print("Working on fault number %d:" % self.defnodeFaultNum)
         self._readDefnode()
@@ -871,6 +871,7 @@ class Py2Def(Application):
         faultCellCoordsLocal = self.faultCoordsLocal[self.faultConnect,:]
         faultCellCentersLocal = numpy.mean(faultCellCoordsLocal, axis=1)
         tree = scipy.spatial.cKDTree(defPatchCentersLocal)
+        numSearch = min(numSearch, self.numDefCells)
 
         # Search tree to find closest Defnode patches for each fault vertex.
         (distances, patchesNear) = tree.query(faultCellCentersLocal, k=numSearch)
