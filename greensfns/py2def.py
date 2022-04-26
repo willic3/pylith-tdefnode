@@ -218,8 +218,8 @@ class Py2Def(Application):
 
 
     def main(self):
-        import pdb
-        pdb.set_trace()
+        # import pdb
+        # pdb.set_trace()
         self.projPylith = Proj(self.meshCoordsys)
         print("Working on fault number %d:" % self.defnodeFaultNum)
         self._readDefnode()
