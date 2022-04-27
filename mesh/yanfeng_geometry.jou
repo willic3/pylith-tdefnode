@@ -36,7 +36,7 @@ ${ymid=0.5*(ymin+ymax)}
 ${zmid=0.5*(zmin+zmax)}
 ${xlen=xmax-xmin-2.0*km}
 ${ylen=ymax-ymin-2.0*km}
-${zlen=zmax-zmin-2.0*km}
+${zlen=zmax-zmin-0.2*km}
 
 ${xdim=xlen+40.0*km}
 ${ydim=ylen-5.0*km}
@@ -73,3 +73,4 @@ merge all
 # Export volume.
 # ----------------------------------------------------------------------
 save as 'yanfeng_geometry.cub' overwrite
+
