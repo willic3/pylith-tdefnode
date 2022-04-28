@@ -821,6 +821,97 @@ class Py2Def(Application):
          return rotationMatrix
 
 
+    def _getAreas2(self):
+        """
+        Function to compute areas associated with each PyLith vertex within each
+        defnode cell.
+        This version projects all nearby triangle centers into the best-fit plane of the
+        quadrilateral (loop is over Defnode quadrilaterals).
+        """
+        print("  Computing areas associated with each vertex:")
+        sys.stdout.flush()
+
+        # Define arrays
+        self.totalArea = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
+        self.numPatchesShared = numpy.zeros(self.numFaultVerts, dtype=numpy.int32)
+        self.connectedPatches = -1 * numpy.ones((self.numFaultVerts, 4), dtype=numpy.int32)
+        self.connectedPatchArea = numpy.zeros((self.numFaultVerts, 4), dtype=numpy.float64)
+        self.patchArea = numpy.zeros(self.numDefCells, dtype=numpy.float64)
+
+        printIncr = 100
+
+        # Get coordinates in selected fault plane.
+        if (self.faultProjectionPlane == 'best_fit_plane'):
+            (planeNormal, planeOrigin) = self._fitPlaneToPoints(self.defNodeCoords)
+        elif (self.faultProjectionPlane == 'defnode_endpoints'):
+            points = numpy.zeros((3,3), dtype=numpy.float64)
+            points[0,:] = self.defNodeCoords[0,:]
+            points[1,:] = self.defNodeCoords[self.numDefNodes - self.numDdNodes,:]
+            points[2,:] = self.defNodeCoords[-1,:]
+            (planeNormal, planeOrigin) = self._fitPlaneToPoints(points)
+        elif (self.faultProjectionPlane == 'xy_plane'):
+            planeNormal = numpy.array([0.0, 0.0, 1.0], dtype=numpy.float64)
+            planeOrigin = numpy.mean(self.defNodeCoords, axis=0)
+        elif (self.faultProjectionPlane == 'xz_plane'):
+            planeNormal = numpy.array([0.0, 1.0, 0.0], dtype=numpy.float64)
+            planeOrigin = numpy.mean(self.defNodeCoords, axis=0)
+        elif (self.faultProjectionPlane == 'yz_plane'):
+            planeNormal = numpy.array([1.0, 0.0, 0.0], dtype=numpy.float64)
+            planeOrigin = numpy.mean(self.defNodeCoords, axis=0)
+        else:
+            msg = "Unknown fault projection plane:  %s" % self.faultProjectionPlane
+            raise ValueError(msg)
+
+        rotationMatrix = self._getFaultRotationMatrix(planeNormal)
+        self.defNodeCoordsLocal = self._computeLocalPlaneCoords(self.defNodeCoords, rotationMatrix, planeOrigin)
+        self.faultCoordsLocal = self._computeLocalPlaneCoords(self.faultCoords, rotationMatrix, planeOrigin)
+
+        # Make KD-tree of local PyLith cell centroids
+        numSearch = 10
+        defPatchCoordsLocal = self.defNodeCoordsLocal[self.defCellConnect,:]
+        defPatchCentersLocal = numpy.mean(defPatchCoordsLocal, axis=1)
+        faultCellCoordsLocal = self.faultCoordsLocal[self.faultConnect,:]
+        faultCellCentersLocal = numpy.mean(faultCellCoordsLocal, axis=1)
+        tree = scipy.spatial.cKDTree(defPatchCentersLocal)
+        numSearch = min(numSearch, self.numDefCells)
+
+        # Search tree to find closest Defnode patches for each fault vertex.
+        (distances, patchesNear) = tree.query(faultCellCentersLocal, k=numSearch)
+
+        # Loop over fault cells.
+        for cellNum in range(self.numFaultCells):
+            if (cellNum % printIncr == 0):
+                print("    Working on cell number %d:" % cellNum)
+                sys.stdout.flush()
+            cellVerts = self.faultConnect[cellNum,:]
+            cellCoords = self.faultCoords[cellVerts,:]
+            cellCenterLocal = faultCellCentersLocal[cellNum,:]
+            cellArea = self._triArea(cellCoords)
+            cellCenterXY = cellCenterLocal[0:2]
+            cellPoint = shapely.geometry.Point(cellCenterXY)
+            self.totalArea[cellVerts] += cellArea/3.0
+            # Loop over closest defnode patches.
+            for patch in patchesNear[cellNum, :]:
+                patchCoords = self.defNodeCoordsLocal[self.defCellConnect[patch, :],0:2]
+                patchPoly = shapely.geometry.Polygon(patchCoords[:,:])
+                inPoly = patchPoly.contains(cellPoint)
+                if (inPoly):
+                    self.patchArea[patch] += cellArea
+                    for vertNum in cellVerts:
+                        alreadyUsed = numpy.where(self.connectedPatches[vertNum,:] == patch)
+                        if (alreadyUsed[0].shape[0] == 0):
+                            patchInd = numpy.argmin(self.connectedPatches[vertNum,:])
+                            self.connectedPatches[vertNum, patchInd] = patch
+                            self.connectedPatchArea[vertNum, patchInd] += cellArea/3.0
+                            self.numPatchesShared[vertNum] += 1
+                        else:
+                            self.connectedPatchArea[vertNum, alreadyUsed] += cellArea/3.0
+              
+                    break
+                  
+        return
+
+
     def _getAreas(self):
         """
         Function to compute areas associated with each PyLith vertex within each
