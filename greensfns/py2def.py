@@ -644,7 +644,7 @@ class Py2Def(Application):
         b3 = 0.25 * ((quad[0,1] - quad[1,1]) + (quad[2,1] - quad[3,1]))
         x0 = pointCoords[0] - a0
         y0 = pointCoords[1] - b0
-        eps = 0.02
+        eps = 0.10
 
         # Quadratic coefficients.
         A = a3 * b2 - a2 * b3
@@ -933,10 +933,11 @@ class Py2Def(Application):
         if (self.faultProjectionPlane == 'best_fit_plane'):
             (planeNormal, planeOrigin) = self._fitPlaneToPoints(self.defNodeCoords)
         elif (self.faultProjectionPlane == 'defnode_endpoints'):
-            points = numpy.zeros((3,3), dtype=numpy.float64)
+            points = numpy.zeros((4,3), dtype=numpy.float64)
             points[0,:] = self.defNodeCoords[0,:]
             points[1,:] = self.defNodeCoords[self.numDefNodes - self.numDdNodes,:]
             points[2,:] = self.defNodeCoords[-1,:]
+            points[3,:] = self.defNodeCoords[self.numDdNodes - 1,:]
             (planeNormal, planeOrigin) = self._fitPlaneToPoints(points)
         elif (self.faultProjectionPlane == 'xy_plane'):
             planeNormal = numpy.array([0.0, 0.0, 1.0], dtype=numpy.float64)
