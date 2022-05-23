@@ -172,6 +172,8 @@ class Py2Def(Application):
 
         self.gpsCoordsGeog = None
         self.gpsCoordsCart = None
+        self.insarCoordsGeog = None
+        self.insarCoordsCart = None
         self.upCoordsGeog = None
         self.upCoordsCart = None
         self.upSites = []
@@ -1642,10 +1644,14 @@ class Py2Def(Application):
         return
 
     
-    def _readDefGf(self, gfFile, gfType):
+    def _readDefGf(self, gfFile, gfType, coordsGeog):
         """
         Function to read DEFNODE Green's function file.
         """
+        epsilon = 1.0e-5
+        coordsGeogCurrent = None
+        if (coordsGeog is not None):
+            coordsGeogCurrent = coordsGeog.copy()
         f = open(gfFile, 'r')
         fLines = f.readlines()
         numSites = len(fLines) - 1
@@ -1664,21 +1670,34 @@ class Py2Def(Application):
             else:
                 (type, gfCoordsGeog[pointNum,0], gfCoordsGeog[pointNum,1], gf1, gf2, site) = gfFmt.read(fLines[lineNum])
                 sites.append(site)
+            if (coordsGeogCurrent is not None):
+                diff = coordsGeogCurrent - gfCoordsGeog[pointNum,:]
+                norm = numpy.linalg.norm(diff, axis=1)
+                indMin = numpy.argmin(norm)
+                if (norm[indMin] > epsilon):
+                    coordsGeogCurrent = numpy.append(coordsGeogCurrent, gfCoordsGeog[pointNum,:].reshape(1,2), axis=0)
+            else:
+                coordsGeogCurrent = gfCoordsGeog[pointNum,:].reshape(1,2)
             pointNum += 1
 
-        (x, y) = transform(self.projWGS84, self.projPylith, gfCoordsGeog[:,0], gfCoordsGeog[:,1])
-        gfCoordsCart = numpy.column_stack((x, y))
+        (x, y) = transform(self.projWGS84, self.projPylith, coordsGeogCurrent[:,0], coordsGeogCurrent[:,1])
+        coordsCartCurrent = numpy.column_stack((x, y))
+        numTotalSites = coordsGeogCurrent.shape[0]
 
         if (gfType == 'g'):
-            return (numSites, gfCoordsGeog, gfCoordsCart)
+            return (numTotalSites, coordsGeogCurrent, coordsCartCurrent)
         else:
-            return (numSites, gfCoordsGeog, gfCoordsCart, sites)
+            return (numTotalSites, coordsGeogCurrent, coordsCartCurrent, sites)
 
     
-    def _readTDefGf(self, gfFile):
+    def _readTDefGf(self, gfFile, coordsGeog):
         """
         Function to read TDEFNODE Green's function file.
         """
+        epsilon = 1.0e-5
+        coordsGeogCurrent = None
+        if (coordsGeog is not None):
+            coordsGeogCurrent = coordsGeog.copy()
         f = open(gfFile, 'r')
         fLines = f.readlines()
         numSites = len(fLines) - 1
@@ -1689,12 +1708,21 @@ class Py2Def(Application):
 
         for lineNum in range(1, numSites + 1):
             (type, gfCoordsGeog[pointNum,0], gfCoordsGeog[pointNum,1], gf1, gf2, gf3, gf4, gf5, gf6) = gfFmt.read(fLines[lineNum])
+            if (coordsGeogCurrent is not None):
+                diff = coordsGeogCurrent - gfCoordsGeog[pointNum,:]
+                norm = numpy.linalg.norm(diff, axis=1)
+                indMin = numpy.argmin(norm)
+                if (norm[indMin] > epsilon):
+                    coordsGeogCurrent = numpy.append(coordsGeogCurrent, gfCoordsGeog[pointNum,:].reshape(1,2), axis=0)
+            else:
+                coordsGeogCurrent = gfCoordsGeog[pointNum,:].reshape(1,2)
             pointNum += 1
 
-        (x, y) = transform(self.projWGS84, self.projPylith, gfCoordsGeog[:,0], gfCoordsGeog[:,1])
-        gfCoordsCart = numpy.column_stack((x, y))
+        (x, y) = transform(self.projWGS84, self.projPylith, coordsGeogCurrent[:,0], coordsGeogCurrent[:,1])
+        coordsCartCurrent = numpy.column_stack((x, y))
+        numTotalSites = coordsGeogCurrent.shape[0]
 
-        return (numSites, gfCoordsGeog, gfCoordsCart)
+        return (numTotalSites, coordsGeogCurrent, coordsCartCurrent)
 
 
     def _readDefnode(self):
@@ -1749,35 +1777,19 @@ class Py2Def(Application):
         self.defNodeCoords = numpy.zeros((self.numDefNodes, 3), dtype=numpy.float64)
 
         # Loop over Defnode nodes.
-        maxGpsSites = 0
-        maxInsarSites = 0
-        maxUpSites = 0
-        gpsSiteIndex = -1
-        insarSiteIndex = -1
-        upSiteIndex = -1
-
         for lineNum in range(self.numDefNodes):
             if (self.useGps):
                 line = self.gpsHeaders[lineNum]
                 (type, kf, asNode, ddNode, numGF, lon, lat, elev, xInterp, wInterp,
                  kish, nlayers, gfVersion, dateMade, moment, gpsNear) = self.gfHeadFmtR.read(line)
-                if (numGF > maxGpsSites):
-                    maxGpsSites = numGF
-                    gpsSiteIndex = lineNum
             if (self.useInsar):
                 line = self.insarHeaders[lineNum]
                 (type, kf, asNode, ddNode, numGF, lon, lat, elev, xInterp, wInterp,
                  kish, nlayers, gfVersion, dateMade, moment, gpsNear) = self.gfHeadFmtR.read(line)
-                if (numGF > maxInsarSites):
-                    maxInsarSites = numGF
-                    insarSiteIndex = lineNum
             if (self.useUp):
                 line = self.upHeaders[lineNum]
                 (type, kf, asNode, ddNode, numGF, lon, lat, elev, xInterp, wInterp,
                  kish, nlayers, gfVersion, dateMade, moment, gpsNear) = self.gfHeadFmtR.read(line)
-                if (numGF > maxUpSites):
-                    maxUpSites = numGF
-                    upSiteIndex = lineNum
             elev *= -1000.0
             defNodeCoordsGeog[lineNum, 0] = lon
             defNodeCoordsGeog[lineNum, 1] = lat
@@ -1793,18 +1805,32 @@ class Py2Def(Application):
 
         self._createDefnodeConnect()
 
-        # Read sample GF files and get coordinates of observation locations.
-        if (self.gfType == 'defnode'):
-            if (self.useGps):
-                (self.numGpsSites, self.gpsCoordsGeog, self.gpsCoordsCart) = self._readDefGf(gpsList[gpsSiteIndex], 'g')
-            if (self.useUp):
-                (self.numUpSites, self.upCoordsGeog, self.upCoordsCart, self.upSites) = self._readDefGf(upList[upSiteIndex], 'u')
-        else:
-            if (self.useGps):
-                (self.numGpsSites, self.gpsCoordsGeog, self.gpsCoordsCart) = self._readTDefGf(gpsList[gpsSiteIndex])
-            if (self.useInsar):
-                (self.numInsarSites, self.insarCoordsGeog, self.insarCoordsCart) = self._readTDefGf(insarList[insarSiteIndex])
+        # Get unique observation locations.
+        for nodeNum in range(self.numDefNodes):
+            if (self.gfType == 'defnode'):
+                if (self.useGps):
+                    (self.numGpsSites, self.gpsCoordsGeog, self.gpsCoordsCart) = self._readDefGf(gpsList[nodeNum], 'g', self.gpsCoordsGeog)
+                if (self.useUp):
+                    (self.numUpSites, self.upCoordsGeog, self.upCoordsCart, self.upSites) = self._readDefGf(upList[nodeNum], 'u', self.upCoordsGeog)
+            else:
+                if (self.useGps):
+                    (self.numGpsSites, self.gpsCoordsGeog, self.gpsCoordsCart) = self._readTDefGf(gpsList[nodeNum], self.gpsCoordsGeog)
+                if (self.useInsar):
+                    (self.numInsarSites, self.insarCoordsGeog, self.insarCoordsCart) = self._readTDefGf(insarList[nodeNum], self.upCoordsGeog)
 
+        # Sort sites by lon, then lat.
+        if self.useGps:
+            inds = numpy.lexsort((self.gpsCoordsGeog[:,1], self.gpsCoordsGeog[:,0]))
+            self.gpsCoordsGeog = self.gpsCoordsGeog[inds,:]
+            self.gpsCoordsCart = self.gpsCoordsCart[inds,:]
+        if self.useUp:
+            inds = numpy.lexsort((self.upCoordsGeog[:,1], self.upCoordsGeog[:,0]))
+            self.upCoordsGeog = self.upCoordsGeog[inds,:]
+            self.upCoordsCart = self.upCoordsCart[inds,:]
+        if self.useInsar:
+            inds = numpy.lexsort((self.insarCoordsGeog[:,1], self.insarCoordsGeog[:,0]))
+            self.insarCoordsGeog = self.insarCoordsGeog[inds,:]
+            self.insarCoordsCart = self.insarCoordsCart[inds,:]
         self._fixDefnodeHeaders()
 
         return
