@@ -9,17 +9,17 @@ import scipy.spatial.distance
 # pdb.set_trace()
 
 # Definitions for each input file.
-prefs = ["dls2022_all", "GNSS_sites_available"]
-suffs = [".vel", ".txt"]
-skips = [0, 0]
-cols = [(0,1,12), (0,1,2)]
-delims = [None, None]
+prefs = ["dls2023_estnoise_eura14", "dls2022_all", "GNSS_sites_available"]
+suffs = [".sites", ".vel", ".txt"]
+skips = [0, 0, 0]
+cols = [(0,1,2), (0,1,12), (0,1,2)]
+delims = [None, None, None]
 
 # Combined results.
-combinedPref = "all_sites_2022"
+combinedPref = "all_sites_2023"
 
 # Epsilon values.
-uniqueEps = 0.002
+uniqueEps = 0.003
 coincidentEps = 0.00005
 
 # Elevation value to assign.
