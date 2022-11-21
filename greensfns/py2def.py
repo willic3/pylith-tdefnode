@@ -13,25 +13,37 @@
 ## produce GF for DEFNODE or TDEFNODE.
 
 import math
-import numpy
 import os
 import re
 import sys
 import glob
-import h5py
+import platform
 
+# For now, if we are running Python 2, we will also assume PyLith 2.
+PYTHON_MAJOR_VERSION = int(platform.python_version_tuple()[0])
+
+if (PYTHON_MAJOR_VERSION == 2):
+    from pathlib2 import Path
+    from pyre.applications.Script import Script as Application
+    import pyre.units.unitparser
+    from pyre.units.length import km
+    from pyre.units.length import mm
+else:
+    from pathlib import Path
+    from pythia.pyre.applications.Script import Script as Application
+    import pythia.pyre.units.unitparser
+    from pythia.pyre.units.length import km
+    from pythia.pyre.units.length import mm
+
+import numpy
+import h5py
 from fortranformat import FortranRecordReader
 from fortranformat import FortranRecordWriter
-
 from pyproj import Proj
 from pyproj import transform
-
 import scipy.spatial
 import scipy.spatial.distance
-
 import shapely.geometry
-
-from pyre.applications.Script import Script as Application
 
 class Py2Def(Application):
     """
@@ -63,60 +75,63 @@ class Py2Def(Application):
     ## @li \b nm_scale Scaling factor to apply to normal slip Green's functions.
     """
 
-    import pyre.inventory
+    if (PYTHON_MAJOR_VERSION == 2):
+        import pyre.inventory as inventory
+    else:
+        import pythia.pyre.inventory as inventory
 
-    llImpulseFile = pyre.inventory.str("ll_impulse_file", default="gf_ll_fault.h5")
+    llImpulseFile = inventory.str("ll_impulse_file", default="gf_ll_fault.h5")
     llImpulseFile.meta['tip'] = "Filename of left-lateral impulse HDF5 file."
 
-    udImpulseFile = pyre.inventory.str("ud_impulse_file", default="gf_ud_fault.h5")
+    udImpulseFile = inventory.str("ud_impulse_file", default="gf_ud_fault.h5")
     udImpulseFile.meta['tip'] = "Filename of updip impulse HDF5 file."
 
-    nmImpulseFile = pyre.inventory.str("nm_impulse_file", default="gf_nm_fault.h5")
+    nmImpulseFile = inventory.str("nm_impulse_file", default="gf_nm_fault.h5")
     nmImpulseFile.meta['tip'] = "Filename of normal slip impulse HDF5 file."
 
-    llResponseFile = pyre.inventory.str("ll_response_file", default="gf_ll_points.h5")
+    llResponseFile = inventory.str("ll_response_file", default="gf_ll_points.h5")
     llResponseFile.meta['tip'] = "Filename of left-lateral response HDF5 file."
 
-    udResponseFile = pyre.inventory.str("ud_response_file", default="gf_ud_points.h5")
+    udResponseFile = inventory.str("ud_response_file", default="gf_ud_points.h5")
     udResponseFile.meta['tip'] = "Filename of updip response HDF5 file."
 
-    nmResponseFile = pyre.inventory.str("nm_response_file", default="gf_nm_points.h5")
+    nmResponseFile = inventory.str("nm_response_file", default="gf_nm_points.h5")
     nmResponseFile.meta['tip'] = "Filename of normal slip response HDF5 file."
 
-    gfType = pyre.inventory.str("gf_type", default="defnode", validator=pyre.inventory.choice(["defnode", "tdefnode"]))
+    gfType = inventory.str("gf_type", default="defnode", validator=inventory.choice(["defnode", "tdefnode"]))
     gfType.meta['tip'] = "Use DEFNODE or TDEFNODE Green's functions."
 
-    unmatchedSiteOption = pyre.inventory.str("unmatched_site_option", default="zero", validator=pyre.inventory.choice(["zero", "error"]))
+    unmatchedSiteOption = inventory.str("unmatched_site_option", default="zero", validator=inventory.choice(["zero", "error"]))
     unmatchedSiteOption.meta['tip'] = "Exit with error or create zero values for sites without Green's functions."
 
-    faultProjectionPlane = pyre.inventory.str("fault_projection_plane", default="xy_plane",
-                                              validator=pyre.inventory.choice(["xy_plane", "xz_plane", "yz_plane", "best_fit_plane",
-                                                                               "defnode_endpoints"]))
+    faultProjectionPlane = inventory.str("fault_projection_plane", default="xy_plane",
+                                         validator=inventory.choice(["xy_plane", "xz_plane", "yz_plane", "best_fit_plane",
+                                                                     "defnode_endpoints"]))
     faultProjectionPlane.meta['tip'] = "Plane into which to project to determine whether points lie in DEFNODE quads."
 
-    defnodeGfDir = pyre.inventory.str("defnode_gf_dir", default="defnode_gf")
+    defnodeGfDir = inventory.str("defnode_gf_dir", default="defnode_gf")
     defnodeGfDir.meta['tip'] = "Directory containing DEFNODE/TDEFNODE Green's functions."
 
-    defnodeFaultNum = pyre.inventory.int("defnode_fault_num", default=1)
+    defnodeFaultNum = inventory.int("defnode_fault_num", default=1)
     defnodeFaultNum.meta['tip'] = "DEFNODE/TDEFNODE fault number."
 
-    defnodeFaultSlipType = pyre.inventory.str("defnode_fault_slip_type", default="shear", validator=pyre.inventory.choice(["shear", "3d"]))
+    defnodeFaultSlipType = inventory.str("defnode_fault_slip_type", default="shear", validator=inventory.choice(["shear", "3d"]))
     defnodeFaultSlipType.meta['tip'] = "Use shear only or 3D (requires fault-normal Green's functions)."
 
-    meshCoordsys = pyre.inventory.str("mesh_coordsys",
-        default="+proj=tmerc +lon_0=175.45 +lat_0=-40.825 +ellps=WGS84 +datum=WGS84 +k=0.9996 +towgs84=0.0,0.0,0.0")
+    meshCoordsys = inventory.str("mesh_coordsys",
+                                 default="+proj=tmerc +lon_0=175.45 +lat_0=-40.825 +ellps=WGS84 +datum=WGS84 +k=0.9996 +towgs84=0.0,0.0,0.0")
     meshCoordsys.meta['tip'] = "Projection information for mesh coordinates."
 
-    gfOutputDirectory = pyre.inventory.str("gf_output_directory", default="greensfns")
+    gfOutputDirectory = inventory.str("gf_output_directory", default="greensfns")
     gfOutputDirectory.meta['tip'] = "Directory to put DEFNODE/TDEFNODE GF files."
 
-    impulseInfoFile = pyre.inventory.str("impulse_info_file", default="impulse_info.vtk")
+    impulseInfoFile = inventory.str("impulse_info_file", default="impulse_info.vtk")
     impulseInfoFile.meta['tip'] = "Output VTK file with impulse information."
 
-    responseInfoRoot = pyre.inventory.str("response_info_root", default="response_info")
+    responseInfoRoot = inventory.str("response_info_root", default="response_info")
     responseInfoRoot.meta['tip'] = "Root filename for response information."
 
-    gfScale = pyre.inventory.float("gf_scale", default=1.0)
+    gfScale = inventory.float("gf_scale", default=1.0)
     gfScale.meta['tip'] = "Scaling factor to apply to Green's functions."
 
 
@@ -255,28 +270,6 @@ class Py2Def(Application):
         return
       
 
-    def _checkDir(self, subDir):
-        """
-        Function to see if directory exists and create it if necessary.
-        """
-        if os.path.isabs(subDir):
-            newDir = subDir
-        else:
-            newDir = os.path.join(os.getcwd(), subDir)
-
-        testDir = os.path.isdir(newDir)
-        testFile = os.path.isfile(newDir)
-
-        if (testDir == False):
-            if (testFile == True):
-                msg = "Subdirectory exists as a file."
-                raise ValueError(msg)
-            else:
-                os.makedirs(newDir)
-
-        return newDir
-
-
     def _writeImpulseInfo(self):
         """
         Function to write impulse information to a VTK file.
@@ -285,8 +278,8 @@ class Py2Def(Application):
         print("  Writing impulse information:")
         sys.stdout.flush()
 
-        pathName = os.path.dirname(self.impulseInfoFile)
-        outputDir = self._checkDir(pathName)
+        outputDir = Path(self.impulseInfoFile).parents[0]
+        outputDir.mkdir(parents=True, exist_ok=True)
         vtkHead = "# vtk DataFile Version 2.0\n" + \
                   "Impulse information for PyLith to Defnode conversion.\n" + \
                   "ASCII\n" + \
@@ -404,8 +397,8 @@ class Py2Def(Application):
         print("  Writing unmatched site coordinates:")
         sys.stdout.flush()
 
-        pathName = os.path.dirname(self.responseInfoRoot)
-        outputDir = self._checkDir(pathName)
+        outputDir = Path(self.responseInfoRoot).parents[0]
+        outputDir.mkdir(parents=True, exist_ok=True)
         if (self.useGps):
             numUnmatchedGPSSites = self.unmatchedGPSSiteCoords.shape[0]
             print("    Number of unmatched GPS sites:  %d" % numUnmatchedGPSSites)
@@ -441,8 +434,8 @@ class Py2Def(Application):
         print("  Writing response information:")
         sys.stdout.flush()
 
-        pathName = os.path.dirname(self.responseInfoRoot)
-        outputDir = self._checkDir(pathName)
+        outputDir = Path(self.responseInfoRoot).parents[0]
+        outputDir.mkdir(parents=True, exist_ok=True)
         if (self.useGps):
             gpsFile = self.responseInfoRoot + "_gps.vtk"
             vtkHeadG = "# vtk DataFile Version 2.0\n" + \
@@ -520,7 +513,8 @@ class Py2Def(Application):
         gfFmtGPS = FortranRecordWriter(gfFortranGPS)
         gPref = 'G'
         iPref = 'I'
-        outputDir = self._checkDir(self.gfOutputDirectory)
+        outputDir = Path(self.gfOutputDirectory)
+        outputDir.mkdir(parents=True, exist_ok=True)
 
         # Loop over number of along-strike and downdip nodes.
         for asNode in range(self.numAsNodes):
@@ -586,7 +580,8 @@ class Py2Def(Application):
         gfFmtUp = FortranRecordWriter(gfFortranUp)
         gPref = 'G'
         uPref = 'U'
-        outputDir = self._checkDir(self.gfOutputDirectory)
+        outputDir = Path(self.gfOutputDirectory)
+        outputDir.mkdir(parents=True, exist_ok=True)
 
         # Loop over number of along-strike and downdip nodes.
         for asNode in range(self.numAsNodes):
@@ -646,7 +641,7 @@ class Py2Def(Application):
         b3 = 0.25 * ((quad[0,1] - quad[1,1]) + (quad[2,1] - quad[3,1]))
         x0 = pointCoords[0] - a0
         y0 = pointCoords[1] - b0
-        eps = 0.10
+        eps = 0.02
 
         # Quadratic coefficients.
         A = a3 * b2 - a2 * b3
