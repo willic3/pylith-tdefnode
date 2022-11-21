@@ -1101,7 +1101,7 @@ class Py2Def(Application):
                     msg2 = "Geographic coordinates:  %g %g\n" % (self.gpsCoordsGeog[siteNum, 0], self.gpsCoordsGeog[siteNum, 1])
                     msg = msg1 + msg2
                     raise ValueError(msg)
-            self.unmatchedGPSSites = -1*numpy.ones(self.numGpsSites, dtype=numpy.int)
+            self.unmatchedGPSSites = -1*numpy.ones(self.numGpsSites, dtype=numpy.int64)
             self.unmatchedGPSSites[unmatchedGPSSites] = 1
             self.unmatchedGPSSiteCoords = self.responseCoords[unmatchedGPSSites,:]
 
@@ -1121,7 +1121,7 @@ class Py2Def(Application):
                     msg2 = "Geographic coordinates:  %g %g\n" % (self.insarCoordsGeog[siteNum, 0], self.insarCoordsGeog[siteNum, 1])
                     msg = msg1 + msg2
                     raise ValueError(msg)
-            self.unmatchedInsarSites = -1*numpy.ones(self.numInsarSites, dtype=numpy.int)
+            self.unmatchedInsarSites = -1*numpy.ones(self.numInsarSites, dtype=numpy.int64)
             self.unmatchedInsarSites[unmatchedInsarSites] = 1
             self.unmatchedInsarSiteCoords = self.responseCoords[unmatchedInsarSites,:]
           
@@ -1141,7 +1141,7 @@ class Py2Def(Application):
                     msg2 = "Geographic coordinates:  %g %g\n" % (self.upCoordsGeog[siteNum, 0], self.upCoordsGeog[siteNum, 1])
                     msg = msg1 + msg2
                     raise ValueError(msg)
-            self.unmatchedUpSites = -1*numpy.ones(self.numUpSites, dtype=numpy.int)
+            self.unmatchedUpSites = -1*numpy.ones(self.numUpSites, dtype=numpy.int64)
             self.unmatchedUpSites[unmatchedUpSites] = 1
             self.unmatchedUpSiteCoords = self.responseCoords[unmatchedUpSites,:]
           
@@ -1872,7 +1872,7 @@ class Py2Def(Application):
         numDdCells = self.numDdNodes - 1
         numAsCells = self.numAsNodes - 1
         self.numDefCells = numDdCells*numAsCells
-        self.defCellConnect = numpy.zeros((self.numDefCells, 4), dtype=numpy.int)
+        self.defCellConnect = numpy.zeros((self.numDefCells, 4), dtype=numpy.int64)
         cellNum = 0
 
         for asCell in range(numAsCells):
