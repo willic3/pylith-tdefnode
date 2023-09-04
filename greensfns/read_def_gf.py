@@ -7,23 +7,36 @@ VTK file. This version forms quadrilateral cells.
 import pdb
 import os
 import glob
+import platform
+
+# For now, if we are running Python 2, we will also assume PyLith 2.
+PYTHON_MAJOR_VERSION = int(platform.python_version_tuple()[0])
+
+if (PYTHON_MAJOR_VERSION == 2):
+    from pathlib2 import Path
+    from pyre.applications.Script import Script as Application
+    import pyre.units.unitparser
+    from pyre.units.length import km
+    from pyre.units.length import mm
+else:
+    from pathlib import Path
+    from pythia.pyre.applications.Script import Script as Application
+    import pythia.pyre.units.unitparser
+    from pythia.pyre.units.length import km
+    from pythia.pyre.units.length import mm
+
 import numpy
 import scipy.spatial
 from pyproj import Proj
 from pyproj import transform
 from fortranformat import FortranRecordReader
-import h5py
-from pylith.meshio.Xdmf import Xdmf
-
-from pyre.applications.Script import Script as Application
 
 class ReadDefGf(Application):
     """
     This is a script to read Green's function info from DEFNODE/TDEFNODE
-    and create HDF5/XDMF output.
+    and create VTK output.
     """
 
-    import pyre.inventory
     ## Python object for managing ReadDefGf facilities and properties.
     ##
     ## \b Properties
@@ -35,25 +48,30 @@ class ReadDefGf(Application):
     ## @li \b vtk_response_prefix Prefix given to response output names.
     ## @li \b output_projection Proj4 parameters defining output projection.
 
-    defnodeGfDir = pyre.inventory.str("defnode_gf_dir", default="m10b")
+    if (PYTHON_MAJOR_VERSION == 2):
+        import pyre.inventory as inventory
+    else:
+        import pythia.pyre.inventory as inventory
+
+    defnodeGfDir = inventory.str("defnode_gf_dir", default="m10b")
     defnodeGfDir.meta['tip'] = "Directory containing Defnode Green's functions."
 
-    gfType = pyre.inventory.str("gf_type", default="defnode", validator=pyre.inventory.choice(["defnode", "tdefnode"]))
+    gfType = inventory.str("gf_type", default="defnode", validator=inventory.choice(["defnode", "tdefnode"]))
     gfType.meta['tip'] = "Use DEFNODE or TDEFNODE Green's functions."
 
-    defnodeFaultNum = pyre.inventory.int("defnode_fault_num", default=1)
+    defnodeFaultNum = inventory.int("defnode_fault_num", default=1)
     defnodeFaultNum.meta['tip'] = "Fault number for which to read GF."
 
-    vtkImpulseRoot = pyre.inventory.str("vtk_impulse_root", default="greensfns_impulse")
+    vtkImpulseRoot = inventory.str("vtk_impulse_root", default="greensfns_impulse")
     vtkImpulseRoot.meta['tip'] = "Root filename for VTK impulse output."
 
-    vtkResponseRoot = pyre.inventory.str("vtk_response_root", default="greensfns_response")
+    vtkResponseRoot = inventory.str("vtk_response_root", default="greensfns_response")
     vtkResponseRoot.meta['tip'] = "Root filename for VTK response output."
 
-    vtkResponsePrefix = pyre.inventory.str("vtk_response_prefix", default="tdef_")
+    vtkResponsePrefix = inventory.str("vtk_response_prefix", default="tdef_")
     vtkResponsePrefix.meta['tip'] = "Prefix given to response output names."
 
-    outputProjection = pyre.inventory.str("output_projection",
+    outputProjection = inventory.str("output_projection",
                                           default="+proj=tmerc +lon_0=175.45 +lat_0=-40.825 +ellps=WGS84 +datum=WGS84 +k=0.9996 +towgs84=0.0,0.0,0.0")
     outputProjection.meta['tip'] = "Proj4 parameters defining output projection."
                                     
