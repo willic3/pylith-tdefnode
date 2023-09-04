@@ -1,0 +1,29 @@
+Hi Charles,
+
+Attaches are the fault subpatch information of the 6 faults involved in our study area. Each file (e.g., SS10_flt_001_atr.gmt) contains the subpatch information like,
+
+> -Z    1    11.786     1.000     0.000    11.755     0.863     0.000   184.199   102.299    29.200  -1.00   1   1   1   1    0.1049E+02   0.4943E+16   0.0000E+00    -4.998    10.674
+    102.30800000     29.17770000     -0.00000000      0.00000000      0.00000000
+    102.28880000     29.22174000     -0.00000000      5.22386452      0.01076446
+    102.28947548     29.22195613     -2.00000000      5.22293061      2.01198027
+    102.30867208     29.17792400     -2.00000000      0.00000000      0.00000000
+
+I think what you need to do is to, (1) extract the column 11 and 12 of ALL lines starting with
+"> -Z" which gives the centroid longitude and latitude of that subpatch and interpolate the
+shear modulus value (unit: dyne/cm^2 or Pa) at that location, and (2) once you get the shear
+modulus value, insert it to the last column of that line (e.g., after the number 10.674
+shown above) so that I can use it together with other information (e.g, subpath area, slip
+rate, etc.) to calculate the seismic moment. 
+
+In addtion, there is another file named SS10_flt_atr.gmt which contains the subpatch
+information of all 6 faults. You can also work on that file instead of the other 6 .gmt files.
+
+Does that make sense?
+
+Best,
+
+Rui
+
+Rui Xu, PhD, Deputy director                               
+Researcher 
+xurui_3@163.com; xurui@sczdj.gov.cn
