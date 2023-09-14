@@ -34,6 +34,7 @@ class getTdefMoment(Application):
     ## @li \b tdef_flt_info_file Name of TDefnode fault attribute file.
     ## @li \b fault_normal_dist Distance to project on either side of fault to get properties.
     ## @li \b tdef_flt_info_output_file Name of modified fault attribute file to create.
+    ## @li \b vtk_output_file Name of output VTK file.
 
     ## \b Facilities
     ## @li \b db_velocity Spatial database for seismic velocity.
@@ -54,6 +55,9 @@ class getTdefMoment(Application):
 
     tdefFltInfoOutputFile = inventory.str("tdef_flt_info_output_file", default="mod_flt_001_shearmod_atr.gmt")
     tdefFltInfoOutputFile.meta['tip'] = "Name of modified TDefnode fault attribute file to create."
+
+    vtkOutputFile = inventory.str("vtk_output_file", default="mod_flt_001_shearmod_atr.vtk")
+    vtkOutputFile.meta['tip'] = "Name of output VTK file."
 
     from spatialdata.spatialdb.SimpleDB import SimpleDB
     from spatialdata.spatialdb.SimpleGridDB import SimpleGridDB
@@ -116,14 +120,18 @@ class getTdefMoment(Application):
         # Loop over patches to get sample coordinates.
         coordsPos = np.zeros((numPatches, 3), dtype=np.float64)
         coordsNeg = np.zeros((numPatches, 3), dtype=np.float64)
+        cellCenters = np.zeros((numPatches, 3), dtype=np.float64)
+        faultNum = np.zeros(numPatches, dtype=np.int32)
         for patchNum in range(numPatches):
             lineStart = patchNum*5
             lineEnd = lineStart + 5
-            (coordsPos[patchNum,:], coordsNeg[patchNum,:]) = self._getSampleCoords(lines[lineStart:lineEnd])
+            (faultNum[patchNum],
+             cellCenters[patchNum,:], coordsPos[patchNum,:], coordsNeg[patchNum,:]) = self._getSampleCoords(lines[lineStart:lineEnd])
 
         # Query spatial database to get Vs and density.
         dataPos = np.zeros((numPatches, 2), dtype=np.float64)
         dataNeg = np.zeros((numPatches, 2), dtype=np.float64)
+        data = np.zeros((numPatches, 3), dtype=np.float64)
         err = np.zeros((numPatches,), dtype=np.int32)
         csLocal = self.coordsysLocal
 
@@ -136,6 +144,11 @@ class getTdefMoment(Application):
         densityNeg = dataNeg[:,0]
         vsPos = dataPos[:,1]
         vsNeg = dataNeg[:,1]
+        db.setQueryValues(["density", "vs", "vp"])
+        db.multiquery(data, err, cellCenters, csLocal)
+        density = data[:,0]
+        vs = data[:,1]
+        vp = data[:,2]
         db.close()
 
         # Compute effective shear modulus.
@@ -149,7 +162,10 @@ class getTdefMoment(Application):
             lineEnd = lineStart + 5
             lineHead = lines[lineStart].strip()
             effShearModulusStr = f'{effShearModulus[patchNum]:.6g}'
-            lineHeadMod = lineHead + '  ' + effShearModulusStr + '\n'
+            densityStr = f'{density[patchNum]:.6g}'
+            vsStr = f'{vs[patchNum]:.6g}'
+            vpStr = f'{vp[patchNum]:.6g}'
+            lineHeadMod = lineHead + '  ' + effShearModulusStr + '  ' + densityStr + '  ' + vsStr + '  ' + vpStr + '\n'
             w.write(lineHeadMod)
             for lineNum in range(lineStart + 1, lineEnd):
                 w.write(lines[lineNum])
@@ -157,7 +173,60 @@ class getTdefMoment(Application):
         i.close()
         w.close()
 
+        # Write VTK output file.
+        self._writeVTKFile(cellCenters, faultNum, effShearModulus, density, vs, vp)
+
         return
+
+
+    def _writeVTKFile(self, coords, faultNum, effShearModulus, density, vs, vp):
+        """
+        Write VTK output file with values at sampled points.
+        """
+
+        numPoints = coords.shape[0]
+        
+        # Set up header info.
+        vtkHead = "# vtk DataFile Version 2.0\n" + \
+            "Sampled points\n" + \
+            "ASCII\n" + \
+            "DATASET UNSTRUCTURED_GRID\n" + \
+            "POINTS %d double\n" % numPoints
+
+        cellHead = "CELLS %d %d\n" % (numPoints, 2*numPoints)
+        cells = np.ones((numPoints, 2), dtype=np.int32)
+        cells[:,1] = np.arange(numPoints, dtype=np.int32)
+        cellTypeHead = "CELL_TYPES %d\n" % numPoints
+        cellTypes = np.ones(numPoints, dtype=np.int32)
+
+        # Write output file.
+        v = open(self.vtkOutputFile, 'w')
+        v.write(vtkHead)
+        np.savetxt(v, coords)
+        v.write(cellHead)
+        np.savetxt(v, cells, fmt='%d')
+        v.write(cellTypeHead)
+        np.savetxt(v, cellTypes, fmt='%d')
+        v.write("POINT_DATA %d\n" % numPoints)
+        v.write("SCALARS fault_number int\n")
+        v.write("LOOKUP_TABLE default\n")
+        np.savetxt(v, faultNum, fmt='%d')
+        v.write("SCALARS effective_shear_modulus float\n")
+        v.write("LOOKUP_TABLE default\n")
+        np.savetxt(v, effShearModulus)
+        v.write("SCALARS density float\n")
+        v.write("LOOKUP_TABLE default\n")
+        np.savetxt(v, density)
+        v.write("SCALARS vs float\n")
+        v.write("LOOKUP_TABLE default\n")
+        np.savetxt(v, vs)
+        v.write("SCALARS vp float\n")
+        v.write("LOOKUP_TABLE default\n")
+        np.savetxt(v, vp)
+        v.close()
+
+        return
+        
                 
         
     def _getSampleCoords(self, lines):
@@ -167,6 +236,7 @@ class getTdefMoment(Application):
         # Get header line and make empty arrays.
         from spatialdata.geocoords.Converter import convert
         headline = lines[0]
+        faultNum = headline.split()[2]
         lons = np.zeros(4, dtype=np.float64)
         lats = np.zeros(4, dtype=np.float64)
         depths = np.zeros(4, dtype=np.float64)
@@ -199,7 +269,7 @@ class getTdefMoment(Application):
         coordsPos = (cellCenter + normal*self.faultNormalDist).reshape(1,3)
         coordsNeg = (cellCenter - normal*self.faultNormalDist).reshape(1,3)
 
-        return(coordsPos, coordsNeg)
+        return(faultNum, cellCenter, coordsPos, coordsNeg)
                 
         
 # ----------------------------------------------------------------------
