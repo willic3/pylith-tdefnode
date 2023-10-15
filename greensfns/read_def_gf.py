@@ -202,7 +202,7 @@ class ReadDefGf(Application):
         Function to get lists of GPS, InSAR, and Up files.
         """
 
-        print "Getting lists of Green's functions:"
+        print("Getting lists of Green's functions:")
 
         totalGfPath = os.path.normpath(os.path.join(os.getcwd(), self.defnodeGfDir))
         faultString = 'gf' + repr(self.defnodeFaultNum).rjust(3, '0')
@@ -482,7 +482,7 @@ class ReadDefGf(Application):
         Function to read Defnode Green's function files.
         """
 
-        print "Reading Defnode Green's function files:"
+        print("Reading Defnode Green's function files:")
 
         impulseGeogCoords = []
         printIncr = 10
@@ -490,7 +490,7 @@ class ReadDefGf(Application):
         # Loop over GPS files.
         for fileNum in range(self.numGpsFiles):
             if (fileNum % printIncr == 0):
-                print "  Reading GPS file number:  %d" % fileNum
+                print("  Reading GPS file number:  %d" % fileNum)
             gpsCoords = self._readGfFile(fileNum, 'gps')
             impulseGeogCoords.append(gpsCoords)
 
@@ -507,7 +507,7 @@ class ReadDefGf(Application):
         impulseGeogCoords2 = []
         for fileNum in range(self.numInsarFiles):
             if (fileNum % printIncr == 0):
-                print "  Reading InSAR file number:  %d" % fileNum
+                print("  Reading InSAR file number:  %d" % fileNum)
             insarCoords = self._readGfFile(fileNum, 'insar')
             impulseGeogCoords2.append(insarCoords)
 
@@ -525,7 +525,7 @@ class ReadDefGf(Application):
             # Loop over Up files.
             for fileNum in range(self.numUpFiles):
                 if (fileNum % printIncr == 0):
-                    print "  Reading Uplift file number:  %d" % fileNum
+                    print("  Reading Uplift file number:  %d" % fileNum)
                 upCoords = self._readUpFile(fileNum)
                 impulseGeogCoords3.append(upCoords)
 
@@ -545,7 +545,7 @@ class ReadDefGf(Application):
         Function to write impulse information.
         """
 
-        print "Writing impulse VTK files:"
+        print("Writing impulse VTK files:")
 
         # VTK headers.
         headerTop = "# vtk DataFile Version 2.0\n" + \
@@ -592,7 +592,7 @@ class ReadDefGf(Application):
         # Loop over impulses, writing a separate file for each one.
         for impulseNum in range(self.numImpulses):
             if (impulseNum % printIncr == 0):
-                print "  Writing impulse file number:  %d" % impulseNum
+                print("  Writing impulse file number:  %d" % impulseNum)
             slip[impulseNum] = 1.0
             if (impulseNum > 0):
                 slip[impulseNum - 1] = 0.0
