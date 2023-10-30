@@ -35,7 +35,7 @@ else:
     from pythia.pyre.units.length import km
     from pythia.pyre.units.length import mm
 
-import numpy
+import numpy as np
 import h5py
 from fortranformat import FortranRecordReader
 from fortranformat import FortranRecordWriter
@@ -69,6 +69,9 @@ class Py2Def(Application):
     ## @li \b impulse_info_file Output VTK file with impulse information.
     ## @li \b response_info_root Root filename for VTK response information files.
     ## @li \b gf_scale Scaling factor to apply to Green's functions.
+    ## @li \b site_match_epsilon Epsilon value for matching sites.
+    ## @li \b node_match_epsilon Epsilon value for matching fault nodes.
+    ## @li \b bilinear_coeff_epsilon Epsilon value for bilinear interpolation coefficients.
     """
     For now, assume I don't need to separately scale each GF type.
     ## @li \b ud_scale Scaling factor to apply to updip Green's functions.
@@ -133,6 +136,15 @@ class Py2Def(Application):
 
     gfScale = inventory.float("gf_scale", default=1.0)
     gfScale.meta['tip'] = "Scaling factor to apply to Green's functions."
+
+    siteMatchEpsilon = inventory.float("site_match_epsilon", default=100.0)
+    siteMatchEpsilon.meta['tip'] = "Epsilon value for matching sites (meters)."
+
+    nodeMatchEpsilon = inventory.float("node_match_epsilon", default=100.0)
+    nodeMatchEpsilon.meta['tip'] = "Epsilon value for matching fault nodes (meters)."
+
+    bilinearCoeffEpsilon = inventory.float("bilinear_coeff_epsilon", default=0.02)
+    bilinearCoeffEpsilon.meta['tip'] = "Epsilon value for bilinear interpolation coefficients."
 
 
     # PUBLIC METHODS /////////////////////////////////////////////////////
@@ -221,11 +233,10 @@ class Py2Def(Application):
         self.projWGS84 = Proj(WGS84)
         self.projPylith = None
 
-        self.epsilon = 100.0
-        self.quadWeight = numpy.array([[1.0, 0.0, 0.0, 0.0],
-                                       [0.0, 1.0, 0.0, 0.0],
-                                       [0.0, 0.0, 1.0, 0.0],
-                                       [0.0, 0.0, 0.0, 1.0]], dtype=numpy.float64)
+        self.quadWeight = np.array([[1.0, 0.0, 0.0, 0.0],
+                                    [0.0, 1.0, 0.0, 0.0],
+                                    [0.0, 0.0, 1.0, 0.0],
+                                    [0.0, 0.0, 0.0, 1.0]], dtype=np.float64)
 
         gfHeadFmt = "(a1,3i4,i5,3f12.5,2f8.2,2i5,a5, 1x, a12, d14.7, f10.4)"
         self.gfHeadFmtR = FortranRecordReader(gfHeadFmt)
@@ -287,102 +298,102 @@ class Py2Def(Application):
                   "POINTS %d double\n" % self.numFaultVerts
         v = open(self.impulseInfoFile, 'w')
         v.write(vtkHead)
-        numpy.savetxt(v, self.faultCoords)
+        np.savetxt(v, self.faultCoords)
 
         sharedHead1 = "POINT_DATA %d\n" % self.numFaultVerts
         sharedHead = sharedHead1 + "SCALARS num_shared_patches int 1\n" + \
                      "LOOKUP_TABLE default\n"
         v.write(sharedHead)
-        numpy.savetxt(v, self.numPatchesShared, fmt="%d")
+        np.savetxt(v, self.numPatchesShared, fmt="%d")
 
         slipHead = "SCALARS total_slip double 1\n" + \
                    "LOOKUP_TABLE default\n"
         v.write(slipHead)
-        numpy.savetxt(v, self.faultSlip)
+        np.savetxt(v, self.faultSlip)
 
-        impulses = -1 * numpy.ones(self.numFaultVerts, dtype=numpy.int32)
+        impulses = -1 * np.ones(self.numFaultVerts, dtype=np.int64)
         impulses[self.impulseVerts] = 1
         impulseHead = "SCALARS impulse_applied int 1\n" + \
                       "LOOKUP_TABLE default\n"
         v.write(impulseHead)
-        numpy.savetxt(v, impulses, fmt="%d")
+        np.savetxt(v, impulses, fmt="%d")
 
-        vertNums = numpy.arange(0, self.numFaultVerts, dtype=numpy.int32)
+        vertNums = np.arange(0, self.numFaultVerts, dtype=np.int64)
         vertHead = "SCALARS vertex_num int 1\n" + \
                    "LOOKUP_TABLE default\n"
         v.write(vertHead)
-        numpy.savetxt(v, vertNums, fmt="%d")
+        np.savetxt(v, vertNums, fmt="%d")
 
         llHeadE = "SCALARS ll_contrib_east double 1\n" + \
                   "LOOKUP_TABLE default\n"
         v.write(llHeadE)
-        numpy.savetxt(v, self.llContribE, fmt="%g")
+        np.savetxt(v, self.llContribE, fmt="%g")
 
         llHeadN = "SCALARS ll_contrib_north double 1\n" + \
                   "LOOKUP_TABLE default\n"
         v.write(llHeadN)
-        numpy.savetxt(v, self.llContribN, fmt="%g")
+        np.savetxt(v, self.llContribN, fmt="%g")
 
         llHead = "SCALARS ll_contrib double 1\n" + \
                  "LOOKUP_TABLE default\n"
         v.write(llHead)
-        numpy.savetxt(v, self.llContrib, fmt="%g")
+        np.savetxt(v, self.llContrib, fmt="%g")
 
         udHeadE = "SCALARS ud_contrib_east double 1\n" + \
                   "LOOKUP_TABLE default\n"
         v.write(udHeadE)
-        numpy.savetxt(v, self.udContribE, fmt="%g")
+        np.savetxt(v, self.udContribE, fmt="%g")
 
         udHeadN = "SCALARS ud_contrib_north double 1\n" + \
                   "LOOKUP_TABLE default\n"
         v.write(udHeadN)
-        numpy.savetxt(v, self.udContribN, fmt="%g")
+        np.savetxt(v, self.udContribN, fmt="%g")
 
         udHead = "SCALARS ud_contrib double 1\n" + \
                  "LOOKUP_TABLE default\n"
         v.write(udHead)
-        numpy.savetxt(v, self.udContrib, fmt="%g")
+        np.savetxt(v, self.udContrib, fmt="%g")
 
         if (self.defnodeFaultSlipType == '3d'):
             nmHeadE = "SCALARS nm_contrib_east double 1\n" + \
                 "LOOKUP_TABLE default\n"
             v.write(nmHeadE)
-            numpy.savetxt(v, self.nmContribE, fmt="%g")
+            np.savetxt(v, self.nmContribE, fmt="%g")
 
             nmHeadN = "SCALARS nm_contrib_north double 1\n" + \
                 "LOOKUP_TABLE default\n"
             v.write(nmHeadN)
-            numpy.savetxt(v, self.nmContribN, fmt="%g")
+            np.savetxt(v, self.nmContribN, fmt="%g")
 
             nmHead = "SCALARS nm_contrib double 1\n" + \
                 "LOOKUP_TABLE default\n"
             v.write(nmHead)
-            numpy.savetxt(v, self.nmContrib, fmt="%g")
+            np.savetxt(v, self.nmContrib, fmt="%g")
 
         stHead = "SCALARS strike_degrees double 1\n" + \
                  "LOOKUP_TABLE default\n"
         v.write(stHead)
-        numpy.savetxt(v, self.strikeDeg, fmt="%g")
+        np.savetxt(v, self.strikeDeg, fmt="%g")
 
         dpHead = "SCALARS dip_degrees double 1\n" + \
                  "LOOKUP_TABLE default\n"
         v.write(dpHead)
-        numpy.savetxt(v, self.dipDeg, fmt="%g")
+        np.savetxt(v, self.dipDeg, fmt="%g")
 
         rkeHead = "SCALARS rake_degrees_east double 1\n" + \
                   "LOOKUP_TABLE default\n"
         v.write(rkeHead)
-        numpy.savetxt(v, self.rakeDegE, fmt="%g")
+        np.savetxt(v, self.rakeDegE, fmt="%g")
 
         rknHead = "SCALARS rake_degrees_north double 1\n" + \
                   "LOOKUP_TABLE default\n"
         v.write(rknHead)
-        numpy.savetxt(v, self.rakeDegN, fmt="%g")
+        np.savetxt(v, self.rakeDegN, fmt="%g")
 
         rkHead = "SCALARS rake_degrees double 1\n" + \
             "LOOKUP_TABLE default\n"
         v.write(rkHead)
-        numpy.savetxt(v, self.rakeDeg, fmt="%g")
+        np.savetxt(v, self.rakeDeg, fmt="%g")
 
         v.close()
 
@@ -403,25 +414,28 @@ class Py2Def(Application):
             numUnmatchedGPSSites = self.unmatchedGPSSiteCoords.shape[0]
             print("    Number of unmatched GPS sites:  %d" % numUnmatchedGPSSites)
             if (numUnmatchedGPSSites != 0):
+                outArr = np.hstack((self.unmatchedGPSSiteCoords, self.unmatchedSiteDistancesGps.reshape(numUnmatchedGPSSites,1)))
                 gpsFile = self.responseInfoRoot + "_unmatched_sites_gps.txt"
-                gpsHead = 'X\tY\tZ'
-                numpy.savetxt(gpsFile, self.unmatchedGPSSiteCoords, delimiter='\t', header=gpsHead)
+                gpsHead = 'X\tY\tZ\tClosest_site_dist'
+                np.savetxt(gpsFile, outArr, delimiter='\t', header=gpsHead)
 
         if (self.useInsar):
             numUnmatchedInsarSites = self.unmatchedInsarSiteCoords.shape[0]
             print("    Number of unmatched InSAR sites:  %d" % numUnmatchedInsarSites)
             if (numUnmatchedInsarSites != 0):
+                outArr = np.hstack((self.unmatchedInsarSiteCoords, self.unmatchedSiteDistancesInsar.reshape(numUnmatchedInsarSites,1)))
                 insarFile = self.responseInfoRoot + "_unmatched_sites_insar.txt"
-                insarHead = 'X\tY\tZ'
-                numpy.savetxt(insarFile, self.unmatchedInsarSiteCoords, delimiter='\t', header=insarHead)
+                insarHead = 'X\tY\tZ\tClosest_site_dist'
+                np.savetxt(insarFile, outArr, delimiter='\t', header=insarHead)
 
         if (self.useUp):
             numUnmatchedUpSites = self.unmatchedUpSiteCoords.shape[0]
             print("    Number of unmatched Up sites:  %d" % numUnmatchedUpSites)
             if (numUnmatchedUpSites != 0):
+                outArr = np.hstack((self.unmatchedUpSiteCoords, self.unmatchedSiteDistancesUp.reshape(numUnmatchedUpSites,1)))
                 upFile = self.responseInfoRoot + "_unmatched_sites_up.txt"
-                upHead = 'X\tY\tZ'
-                numpy.savetxt(upFile, self.unmatchedUpSiteCoords, delimiter='\t', header=upHead)
+                upHead = 'X\tY\tZ\tClosest_site_dist'
+                np.savetxt(upFile, outArr, delimiter='\t', header=upHead)
 
         return
 
@@ -443,17 +457,21 @@ class Py2Def(Application):
                        "ASCII\n" + \
                        "DATASET POLYDATA\n" + \
                        "POINTS %d double\n" % self.numGpsSites
-            zGps = numpy.zeros((self.numGpsSites, 1), dtype=numpy.float64)
-            gpsOut = numpy.hstack((self.gpsCoordsCart, zGps))
+            zGps = np.zeros((self.numGpsSites, 1), dtype=np.float64)
+            gpsOut = np.hstack((self.gpsCoordsCart, zGps))
             g = open(gpsFile, 'w')
             g.write(vtkHeadG)
-            numpy.savetxt(g, gpsOut)
+            np.savetxt(g, gpsOut)
             if (self.unmatchedSiteOption == 'zero'):
-                sharedHead1 = "POINT_DATA %d\n" % self.numGpsSites
-                sharedHead = sharedHead1 + "SCALARS unmatched_gps_sites int 1\n" + \
+                unmatchedHead1 = "POINT_DATA %d\n" % self.numGpsSites
+                unmatchedHead = unmatchedHead1 + "SCALARS unmatched_gps_sites int 1\n" + \
                     "LOOKUP_TABLE default\n"
-                g.write(sharedHead)
-                numpy.savetxt(g, self.unmatchedGPSSites, fmt="%d")
+                g.write(unmatchedHead)
+                np.savetxt(g, self.unmatchedGPSSites, fmt="%d")
+                distHead = "SCALARS gps_dist_to_closest double 1\n" + \
+                    "LOOKUP_TABLE default\n"
+                g.write(distHead)
+                np.savetxt(g, self.siteDistancesGps)
             g.close()
 
         if (self.useInsar):
@@ -463,17 +481,21 @@ class Py2Def(Application):
                        "ASCII\n" + \
                        "DATASET POLYDATA\n" + \
                        "POINTS %d double\n" % self.numInsarSites
-            zInsar = numpy.zeros((self.numInsarSites, 1), dtype=numpy.float64)
-            insarOut = numpy.hstack((self.insarCoordsCart, zInsar))
+            zInsar = np.zeros((self.numInsarSites, 1), dtype=np.float64)
+            insarOut = np.hstack((self.insarCoordsCart, zInsar))
             i = open(insarFile, 'w')
             i.write(vtkHeadI)
-            numpy.savetxt(i, insarOut)
+            np.savetxt(i, insarOut)
             if (self.unmatchedSiteOption == 'zero'):
-                sharedHead1 = "POINT_DATA %d\n" % self.numInsarSites
-                sharedHead = sharedHead1 + "SCALARS unmatched_insar_sites int 1\n" + \
+                unmatchedHead1 = "POINT_DATA %d\n" % self.numInsarSites
+                unmatchedHead = unmatchedHead1 + "SCALARS unmatched_insar_sites int 1\n" + \
                     "LOOKUP_TABLE default\n"
-                i.write(sharedHead)
-                numpy.savetxt(i, self.unmatchedInsarSites, fmt="%d")
+                i.write(unmatchedHead)
+                np.savetxt(i, self.unmatchedInsarSites, fmt="%d")
+                distHead = "SCALARS insar_dist_to_closest double 1\n" + \
+                    "LOOKUP_TABLE default\n"
+                i.write(distHead)
+                np.savetxt(i, self.siteDistancesInsar)
             i.close()
 
         if (self.useUp):
@@ -483,17 +505,21 @@ class Py2Def(Application):
                        "ASCII\n" + \
                        "DATASET POLYDATA\n" + \
                        "POINTS %d double\n" % self.numUpSites
-            zUp = numpy.zeros((self.numUpSites, 1), dtype=numpy.float64)
-            upOut = numpy.hstack((self.upCoordsCart, zUp))
+            zUp = np.zeros((self.numUpSites, 1), dtype=np.float64)
+            upOut = np.hstack((self.upCoordsCart, zUp))
             u = open(upFile, 'w')
             u.write(vtkHeadU)
-            numpy.savetxt(u, upOut)
+            np.savetxt(u, upOut)
             if (self.unmatchedSiteOption == 'zero'):
-                sharedHead1 = "POINT_DATA %d\n" % self.numUpSites
-                sharedHead = sharedHead1 + "SCALARS unmatched_up_sites int 1\n" + \
+                unmatchedHead1 = "POINT_DATA %d\n" % self.numUpSites
+                unmatchedHead = unmatchedHead1 + "SCALARS unmatched_up_sites int 1\n" + \
                     "LOOKUP_TABLE default\n"
-                u.write(sharedHead)
-                numpy.savetxt(u, self.unmatchedUpSites, fmt="%d")
+                u.write(unmatchedHead)
+                np.savetxt(u, self.unmatchedUpSites, fmt="%d")
+                distHead = "SCALARS up_dist_to_closest double 1\n" + \
+                    "LOOKUP_TABLE default\n"
+                u.write(distHead)
+                np.savetxt(u, self.siteDistancesUp)
             u.close()
 
         return
@@ -641,7 +667,6 @@ class Py2Def(Application):
         b3 = 0.25 * ((quad[0,1] - quad[1,1]) + (quad[2,1] - quad[3,1]))
         x0 = pointCoords[0] - a0
         y0 = pointCoords[1] - b0
-        eps = 0.02
 
         # Quadratic coefficients.
         A = a3 * b2 - a2 * b3
@@ -657,9 +682,9 @@ class Py2Def(Application):
             t = -C/B
         else:
             t = 0.5 * (-B + math.sqrt(discr))/A
-            if (t < -1.0 - eps or t > 1.0 + eps):
+            if (t < -1.0 - self.bilinearCoeffEpsilon or t > 1.0 + self.bilinearCoeffEpsilon):
                 t = 0.5 * (-B - math.sqrt(discr))/A
-        if (t < -1.0 - eps or t > 1.0 + eps):
+        if (t < -1.0 - self.bilinearCoeffEpsilon or t > 1.0 + self.bilinearCoeffEpsilon):
             msg1 = "No root found for point %g %g\n" % (pointCoords[0], pointCoords[1])
             msg2 = "Patch coordinates:  %g %g\n" % (quad[0,0], quad[0,1])
             msg3 = "                    %g %g\n" % (quad[1,0], quad[1,1])
@@ -676,16 +701,16 @@ class Py2Def(Application):
         yTest = b0 + b1 * s + b2 * t + b3 * s * t
         xDiff = xTest - pointCoords[0]
         yDiff = yTest - pointCoords[1]
-        if (math.fabs(xDiff) > self.epsilon or math.fabs(yDiff) > self.epsilon):
+        if (math.fabs(xDiff) > self.nodeMatchEpsilon or math.fabs(yDiff) > self.nodeMatchEpsilon):
             msg = "Bilinear interpolation failed for point: %g  %g" % \
                   (pointCoords[0], pointCoords[1])
             raise ValueError(msg)
 
         # Compute slip.
-        sa = numpy.array([ -1.0,  1.0,  1.0,  -1.0], dtype=numpy.float64)
-        ta = numpy.array([ -1.0, -1.0,  1.0,   1.0], dtype=numpy.float64)
+        sa = np.array([ -1.0,  1.0,  1.0,  -1.0], dtype=np.float64)
+        ta = np.array([ -1.0, -1.0,  1.0,   1.0], dtype=np.float64)
         shape = 0.25 * (1.0 + sa * s) * (1.0 + ta * t)
-        slip = numpy.dot(self.quadWeight, shape)
+        slip = np.dot(self.quadWeight, shape)
 
         return slip
 
@@ -698,8 +723,8 @@ class Py2Def(Application):
         """
         dist = scipy.spatial.distance.cdist(patchCoords, point.reshape((1, 2)))
         coincident = False
-        minDiff = numpy.argmin(dist)
-        if (dist[minDiff] <= self.epsilon):
+        minDiff = np.argmin(dist)
+        if (dist[minDiff] <= self.nodeMatchEpsilon):
             coincident = True
 
         return (coincident, minDiff)
@@ -713,14 +738,14 @@ class Py2Def(Application):
         """
         numNodes = 4
         onLine = False
-        xMin = numpy.amin(patchCoords[:,0])
-        xMax = numpy.amax(patchCoords[:,0])
-        yMin = numpy.amin(patchCoords[:,1])
-        yMax = numpy.amax(patchCoords[:,1])
-        if (point[0] < xMin - self.epsilon or point[0] > xMax + self.epsilon or \
-            point[1] < yMin - self.epsilon or point[1] > yMax + self.epsilon):
+        xMin = np.amin(patchCoords[:,0])
+        xMax = np.amax(patchCoords[:,0])
+        yMin = np.amin(patchCoords[:,1])
+        yMax = np.amax(patchCoords[:,1])
+        if (point[0] < xMin - self.nodeMatchEpsilon or point[0] > xMax + self.nodeMatchEpsilon or \
+            point[1] < yMin - self.nodeMatchEpsilon or point[1] > yMax + self.nodeMatchEpsilon):
             return onLine
-        testPoint = numpy.zeros(2, dtype=numpy.float64)
+        testPoint = np.zeros(2, dtype=np.float64)
         for nodeNum in range(numNodes):
             n1 = nodeNum
             n2 = n1 + 1
@@ -730,12 +755,12 @@ class Py2Def(Application):
             p2 = patchCoords[n2,:]
       
         coordsDiff = p2 - p1
-        coordsNorm = numpy.linalg.norm(coordsDiff)
+        coordsNorm = np.linalg.norm(coordsDiff)
         u = ((point[0] - p1[0]) * (p2[0] - p1[0]) + \
              (point[1] - p1[1]) * (p2[1] - p1[1]))/(coordsNorm * coordsNorm)
         testPoint = p1 + u * (p2 - p1)
-        distance = numpy.linalg.norm(testPoint - point)
-        if (distance <= self.epsilon):
+        distance = np.linalg.norm(testPoint - point)
+        if (distance <= self.nodeMatchEpsilon):
             onLine = True
             return onLine
 
@@ -748,7 +773,7 @@ class Py2Def(Application):
         """
         v1 = cellCoords[1,:] - cellCoords[0,:]
         v2 = cellCoords[2,:] - cellCoords[0,:]
-        area = 0.5 * numpy.linalg.norm(numpy.cross(v1,v2))
+        area = 0.5 * np.linalg.norm(np.cross(v1,v2))
 
         return area
 
@@ -757,8 +782,8 @@ class Py2Def(Application):
         """
         Compute local plane coordinates, given an origin and transformation matrix.
         """
-        # pointsLocal = numpy.dot(points - planeOrigin, rotationMatrix.transpose())
-        pointsLocal = numpy.dot(points - planeOrigin, rotationMatrix)
+        # pointsLocal = np.dot(points - planeOrigin, rotationMatrix.transpose())
+        pointsLocal = np.dot(points - planeOrigin, rotationMatrix)
 
         return pointsLocal
 
@@ -770,18 +795,18 @@ class Py2Def(Application):
 
         # Compute plane origin and subtract it from the points array.
         eps = 1.0e-5
-        planeOrigin = numpy.mean(points, axis=0)
+        planeOrigin = np.mean(points, axis=0)
         x = points - planeOrigin
 
         # Dot product to yield a 3x3 array.
-        moment = numpy.dot(x.T, x)
+        moment = np.dot(x.T, x)
 
         # Extract single values from SVD computation to get normal.
-        planeNormal = numpy.linalg.svd(moment)[0][:,-1]
-        planeNormal /= numpy.linalg.norm(planeNormal)
-        small = numpy.where(numpy.abs(planeNormal) < eps)
+        planeNormal = np.linalg.svd(moment)[0][:,-1]
+        planeNormal /= np.linalg.norm(planeNormal)
+        small = np.where(np.abs(planeNormal) < eps)
         planeNormal[small] = 0.0
-        planeNormal /= numpy.linalg.norm(planeNormal)
+        planeNormal /= np.linalg.norm(planeNormal)
         if (planeNormal[-1] < 0.0):
             planeNormal *= -1.0
 
@@ -798,22 +823,22 @@ class Py2Def(Application):
          """
          # Reference directions to try are z=1 (vertical) and y=1 (north).
          cutoffVecmag = 0.98
-         refDir1 = numpy.array([0.0, 0.0, 1.0], dtype=numpy.float64)
-         refDir2 = numpy.array([0.0, 1.0, 0.0], dtype=numpy.float64)
+         refDir1 = np.array([0.0, 0.0, 1.0], dtype=np.float64)
+         refDir2 = np.array([0.0, 1.0, 0.0], dtype=np.float64)
          refDir = refDir1
 
          # If normal is nearly vertical, use north reference direction.
-         if (numpy.dot(refDir1, planeNormal) > cutoffVecmag):
+         if (np.dot(refDir1, planeNormal) > cutoffVecmag):
              refDir = refDir2
         
          # Get two tangential directions in plane.
-         tanDir1 = numpy.cross(refDir, planeNormal)
-         tanDir1 /= numpy.linalg.norm(tanDir1)
-         tanDir2 = numpy.cross(planeNormal, tanDir1)
-         tanDir2 /= numpy.linalg.norm(tanDir2)
+         tanDir1 = np.cross(refDir, planeNormal)
+         tanDir1 /= np.linalg.norm(tanDir1)
+         tanDir2 = np.cross(planeNormal, tanDir1)
+         tanDir2 /= np.linalg.norm(tanDir2)
          
          # Form rotation matrix.
-         rotationMatrix = numpy.column_stack((tanDir1, tanDir2, planeNormal))
+         rotationMatrix = np.column_stack((tanDir1, tanDir2, planeNormal))
          
          return rotationMatrix
 
@@ -829,11 +854,11 @@ class Py2Def(Application):
         sys.stdout.flush()
 
         # Define arrays
-        self.totalArea = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
-        self.numPatchesShared = numpy.zeros(self.numFaultVerts, dtype=numpy.int32)
-        self.connectedPatches = -1 * numpy.ones((self.numFaultVerts, 4), dtype=numpy.int32)
-        self.connectedPatchArea = numpy.zeros((self.numFaultVerts, 4), dtype=numpy.float64)
-        self.patchArea = numpy.zeros(self.numDefCells, dtype=numpy.float64)
+        self.totalArea = np.zeros(self.numFaultVerts, dtype=np.float64)
+        self.numPatchesShared = np.zeros(self.numFaultVerts, dtype=np.int64)
+        self.connectedPatches = -1 * np.ones((self.numFaultVerts, 4), dtype=np.int64)
+        self.connectedPatchArea = np.zeros((self.numFaultVerts, 4), dtype=np.float64)
+        self.patchArea = np.zeros(self.numDefCells, dtype=np.float64)
 
         printIncr = 100
 
@@ -841,20 +866,20 @@ class Py2Def(Application):
         if (self.faultProjectionPlane == 'best_fit_plane'):
             (planeNormal, planeOrigin) = self._fitPlaneToPoints(self.defNodeCoords)
         elif (self.faultProjectionPlane == 'defnode_endpoints'):
-            points = numpy.zeros((3,3), dtype=numpy.float64)
+            points = np.zeros((3,3), dtype=np.float64)
             points[0,:] = self.defNodeCoords[0,:]
             points[1,:] = self.defNodeCoords[self.numDefNodes - self.numDdNodes,:]
             points[2,:] = self.defNodeCoords[-1,:]
             (planeNormal, planeOrigin) = self._fitPlaneToPoints(points)
         elif (self.faultProjectionPlane == 'xy_plane'):
-            planeNormal = numpy.array([0.0, 0.0, 1.0], dtype=numpy.float64)
-            planeOrigin = numpy.mean(self.defNodeCoords, axis=0)
+            planeNormal = np.array([0.0, 0.0, 1.0], dtype=np.float64)
+            planeOrigin = np.mean(self.defNodeCoords, axis=0)
         elif (self.faultProjectionPlane == 'xz_plane'):
-            planeNormal = numpy.array([0.0, 1.0, 0.0], dtype=numpy.float64)
-            planeOrigin = numpy.mean(self.defNodeCoords, axis=0)
+            planeNormal = np.array([0.0, 1.0, 0.0], dtype=np.float64)
+            planeOrigin = np.mean(self.defNodeCoords, axis=0)
         elif (self.faultProjectionPlane == 'yz_plane'):
-            planeNormal = numpy.array([1.0, 0.0, 0.0], dtype=numpy.float64)
-            planeOrigin = numpy.mean(self.defNodeCoords, axis=0)
+            planeNormal = np.array([1.0, 0.0, 0.0], dtype=np.float64)
+            planeOrigin = np.mean(self.defNodeCoords, axis=0)
         else:
             msg = "Unknown fault projection plane:  %s" % self.faultProjectionPlane
             raise ValueError(msg)
@@ -866,9 +891,9 @@ class Py2Def(Application):
         # Make KD-tree of local PyLith cell centroids
         numSearch = 10
         defPatchCoordsLocal = self.defNodeCoordsLocal[self.defCellConnect,:]
-        defPatchCentersLocal = numpy.mean(defPatchCoordsLocal, axis=1)
+        defPatchCentersLocal = np.mean(defPatchCoordsLocal, axis=1)
         faultCellCoordsLocal = self.faultCoordsLocal[self.faultConnect,:]
-        faultCellCentersLocal = numpy.mean(faultCellCoordsLocal, axis=1)
+        faultCellCentersLocal = np.mean(faultCellCoordsLocal, axis=1)
         tree = scipy.spatial.cKDTree(defPatchCentersLocal)
         numSearch = min(numSearch, self.numDefCells)
 
@@ -895,9 +920,9 @@ class Py2Def(Application):
                 if (inPoly):
                     self.patchArea[patch] += cellArea
                     for vertNum in cellVerts:
-                        alreadyUsed = numpy.where(self.connectedPatches[vertNum,:] == patch)
+                        alreadyUsed = np.where(self.connectedPatches[vertNum,:] == patch)
                         if (alreadyUsed[0].shape[0] == 0):
-                            patchInd = numpy.argmin(self.connectedPatches[vertNum,:])
+                            patchInd = np.argmin(self.connectedPatches[vertNum,:])
                             self.connectedPatches[vertNum, patchInd] = patch
                             self.connectedPatchArea[vertNum, patchInd] += cellArea/3.0
                             self.numPatchesShared[vertNum] += 1
@@ -918,11 +943,11 @@ class Py2Def(Application):
         sys.stdout.flush()
 
         # Define arrays
-        self.totalArea = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
-        self.numPatchesShared = numpy.zeros(self.numFaultVerts, dtype=numpy.int32)
-        self.connectedPatches = -1 * numpy.ones((self.numFaultVerts, 4), dtype=numpy.int32)
-        self.connectedPatchArea = numpy.zeros((self.numFaultVerts, 4), dtype=numpy.float64)
-        self.patchArea = numpy.zeros(self.numDefCells, dtype=numpy.float64)
+        self.totalArea = np.zeros(self.numFaultVerts, dtype=np.float64)
+        self.numPatchesShared = np.zeros(self.numFaultVerts, dtype=np.int64)
+        self.connectedPatches = -1 * np.ones((self.numFaultVerts, 4), dtype=np.int64)
+        self.connectedPatchArea = np.zeros((self.numFaultVerts, 4), dtype=np.float64)
+        self.patchArea = np.zeros(self.numDefCells, dtype=np.float64)
 
         printIncr = 100
 
@@ -930,21 +955,21 @@ class Py2Def(Application):
         if (self.faultProjectionPlane == 'best_fit_plane'):
             (planeNormal, planeOrigin) = self._fitPlaneToPoints(self.defNodeCoords)
         elif (self.faultProjectionPlane == 'defnode_endpoints'):
-            points = numpy.zeros((4,3), dtype=numpy.float64)
+            points = np.zeros((4,3), dtype=np.float64)
             points[0,:] = self.defNodeCoords[0,:]
             points[1,:] = self.defNodeCoords[self.numDefNodes - self.numDdNodes,:]
             points[2,:] = self.defNodeCoords[-1,:]
             points[3,:] = self.defNodeCoords[self.numDdNodes - 1,:]
             (planeNormal, planeOrigin) = self._fitPlaneToPoints(points)
         elif (self.faultProjectionPlane == 'xy_plane'):
-            planeNormal = numpy.array([0.0, 0.0, 1.0], dtype=numpy.float64)
-            planeOrigin = numpy.mean(self.defNodeCoords, axis=0)
+            planeNormal = np.array([0.0, 0.0, 1.0], dtype=np.float64)
+            planeOrigin = np.mean(self.defNodeCoords, axis=0)
         elif (self.faultProjectionPlane == 'xz_plane'):
-            planeNormal = numpy.array([0.0, 1.0, 0.0], dtype=numpy.float64)
-            planeOrigin = numpy.mean(self.defNodeCoords, axis=0)
+            planeNormal = np.array([0.0, 1.0, 0.0], dtype=np.float64)
+            planeOrigin = np.mean(self.defNodeCoords, axis=0)
         elif (self.faultProjectionPlane == 'yz_plane'):
-            planeNormal = numpy.array([1.0, 0.0, 0.0], dtype=numpy.float64)
-            planeOrigin = numpy.mean(self.defNodeCoords, axis=0)
+            planeNormal = np.array([1.0, 0.0, 0.0], dtype=np.float64)
+            planeOrigin = np.mean(self.defNodeCoords, axis=0)
         else:
             msg = "Unknown fault projection plane:  %s" % self.faultProjectionPlane
             raise ValueError(msg)
@@ -956,9 +981,9 @@ class Py2Def(Application):
         # Make KD-tree of local PyLith cell centroids
         numSearch = 10
         defPatchCoordsLocal = self.defNodeCoordsLocal[self.defCellConnect,:]
-        defPatchCentersLocal = numpy.mean(defPatchCoordsLocal, axis=1)
+        defPatchCentersLocal = np.mean(defPatchCoordsLocal, axis=1)
         faultCellCoordsLocal = self.faultCoordsLocal[self.faultConnect,:]
-        faultCellCentersLocal = numpy.mean(faultCellCoordsLocal, axis=1)
+        faultCellCentersLocal = np.mean(faultCellCoordsLocal, axis=1)
         tree = scipy.spatial.cKDTree(defPatchCentersLocal)
         numSearch = min(numSearch, self.numDefCells)
 
@@ -985,9 +1010,9 @@ class Py2Def(Application):
                 if (inPoly):
                     self.patchArea[patch] += cellArea
                     for vertNum in cellVerts:
-                        alreadyUsed = numpy.where(self.connectedPatches[vertNum,:] == patch)
+                        alreadyUsed = np.where(self.connectedPatches[vertNum,:] == patch)
                         if (alreadyUsed[0].shape[0] == 0):
-                            patchInd = numpy.argmin(self.connectedPatches[vertNum,:])
+                            patchInd = np.argmin(self.connectedPatches[vertNum,:])
                             self.connectedPatches[vertNum, patchInd] = patch
                             self.connectedPatchArea[vertNum, patchInd] += cellArea/3.0
                             self.numPatchesShared[vertNum] += 1
@@ -1010,15 +1035,15 @@ class Py2Def(Application):
 
         if (self.gfType == 'defnode'):
             if (self.useGps):
-                self.defGfG = numpy.zeros((self.numDefNodes, self.numGpsSites, 4), dtype=numpy.float64)
+                self.defGfG = np.zeros((self.numDefNodes, self.numGpsSites, 4), dtype=np.float64)
             if (self.useUp):
-                self.defGfU = numpy.zeros((self.numDefNodes, self.numUpSites, 2), dtype=numpy.float64)
+                self.defGfU = np.zeros((self.numDefNodes, self.numUpSites, 2), dtype=np.float64)
         else:
             if (self.useGps):
-                self.defGfG = numpy.zeros((self.numDefNodes, self.numGpsSites, 6), dtype=numpy.float64)
+                self.defGfG = np.zeros((self.numDefNodes, self.numGpsSites, 6), dtype=np.float64)
             if (self.useInsar):
-                self.defGfI = numpy.zeros((self.numDefNodes, self.numInsarSites, 6), dtype=numpy.float64)
-        self.faultSlip = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
+                self.defGfI = np.zeros((self.numDefNodes, self.numInsarSites, 6), dtype=np.float64)
+        self.faultSlip = np.zeros(self.numFaultVerts, dtype=np.float64)
         numCorners = 4
         printIncr = 100
 
@@ -1084,66 +1109,81 @@ class Py2Def(Application):
         unmatchedGPSSites = []
         unmatchedInsarSites = []
         unmatchedUpSites = []
+        unmatchedSiteDistancesGps = []
+        unmatchedSiteDistancesInsar = []
+        unmatchedSiteDistancesUp = []
 
         # Find indices for GPS sites.
         if (self.useGps):
             distanceG = scipy.spatial.distance.cdist(responseCoordsCart, self.gpsCoordsCart)
-            minIndicesG = numpy.argmin(distanceG, axis=0)
+            minIndicesG = np.argmin(distanceG, axis=0)
+            self.siteDistancesGps = np.zeros(self.numGpsSites, dtype=np.float64)
             for siteNum in range(self.numGpsSites):
                 siteId = minIndicesG[siteNum]
-                if (distanceG[siteId, siteNum] < self.epsilon):
+                self.siteDistancesGps[siteNum] = distanceG[siteId, siteNum]
+                if (distanceG[siteId, siteNum] < self.siteMatchEpsilon):
                     gpsIndices.append(siteId)
                 elif (self.unmatchedSiteOption == 'zero'):
                     gpsIndices.append(-1)
                     unmatchedGPSSites.append(siteNum)
+                    unmatchedSiteDistancesGps.append(distanceG[siteId, siteNum])
                 else:
                     msg1 = "No matching site found for GPS site # %d\n" % siteNum
                     msg2 = "Geographic coordinates:  %g %g\n" % (self.gpsCoordsGeog[siteNum, 0], self.gpsCoordsGeog[siteNum, 1])
                     msg = msg1 + msg2
                     raise ValueError(msg)
-            self.unmatchedGPSSites = -1*numpy.ones(self.numGpsSites, dtype=numpy.int64)
+            self.unmatchedGPSSites = -1*np.ones(self.numGpsSites, dtype=np.int64)
             self.unmatchedGPSSites[unmatchedGPSSites] = 1
             self.unmatchedGPSSiteCoords = self.responseCoords[unmatchedGPSSites,:]
+            self.unmatchedSiteDistancesGps = np.array(unmatchedSiteDistancesGps)
 
         # Find indices for InSAR sites.
         if (self.useInsar):
             distanceI = scipy.spatial.distance.cdist(responseCoordsCart, self.insarCoordsCart)
-            minIndicesI = numpy.argmin(distanceI, axis=0)
+            minIndicesI = np.argmin(distanceI, axis=0)
+            self.siteDistancesInsar = np.zeros(self.numInsarSites, dtype=np.float64)
             for siteNum in range(self.numInsarSites):
                 siteId = minIndicesI[siteNum]
-                if (distanceI[siteId, siteNum] < self.epsilon):
+                self.siteDistancesInsar[siteNum] = distanceI[siteId, siteNum]
+                if (distanceI[siteId, siteNum] < self.siteMatchEpsilon):
                     insarIndices.append(siteId)
                 elif (self.unmatchedSiteOption == 'zero'):
                     insarIndices.append(-1)
                     unmatchedInsarSites.append(siteNum)
+                    unmatchedSiteDistancesInsar.append(distanceI[siteId, siteNum])
                 else:
                     msg1 = "No matching site found for InSAR site # %d\n" % siteNum
                     msg2 = "Geographic coordinates:  %g %g\n" % (self.insarCoordsGeog[siteNum, 0], self.insarCoordsGeog[siteNum, 1])
                     msg = msg1 + msg2
                     raise ValueError(msg)
-            self.unmatchedInsarSites = -1*numpy.ones(self.numInsarSites, dtype=numpy.int64)
+            self.unmatchedInsarSites = -1*np.ones(self.numInsarSites, dtype=np.int64)
             self.unmatchedInsarSites[unmatchedInsarSites] = 1
             self.unmatchedInsarSiteCoords = self.responseCoords[unmatchedInsarSites,:]
+            self.unmatchedSiteDistancesInsar = np.array(unmatchedSiteDistancesInsar)
           
         # Find indices for uplift sites.
         if (self.useUp):
             distanceU = scipy.spatial.distance.cdist(responseCoordsCart, self.upCoordsCart)
-            minIndicesU = numpy.argmin(distanceU, axis=0)
+            minIndicesU = np.argmin(distanceU, axis=0)
+            self.siteDistancesUp = np.zeros(self.numUpSites, dtype=np.float64)
             for siteNum in range(self.numUpSites):
                 siteId = minIndicesU[siteNum]
-                if (distanceU[siteId, siteNum] < self.epsilon):
+                self.siteDistancesUp[siteNum] = distanceU[siteId, siteNum]
+                if (distanceU[siteId, siteNum] < self.siteMatchEpsilon):
                     upIndices.append(siteId)
                 elif (self.unmatchedSiteOption == 'zero'):
                     upIndices.append(-1)
-                    unmatchedGPSSites.append(siteNum)
+                    unmatchedUpSites.append(siteNum)
+                    unmatchedSiteDistancesUp.append(distanceU[siteId, siteNum])
                 else:
                     msg1 = "No matching site found for uplift site # %d\n" % siteNum
                     msg2 = "Geographic coordinates:  %g %g\n" % (self.upCoordsGeog[siteNum, 0], self.upCoordsGeog[siteNum, 1])
                     msg = msg1 + msg2
                     raise ValueError(msg)
-            self.unmatchedUpSites = -1*numpy.ones(self.numUpSites, dtype=numpy.int64)
+            self.unmatchedUpSites = -1*np.ones(self.numUpSites, dtype=np.int64)
             self.unmatchedUpSites[unmatchedUpSites] = 1
             self.unmatchedUpSiteCoords = self.responseCoords[unmatchedUpSites,:]
+            self.unmatchedSiteDistancesUp = np.array(unmatchedSiteDistancesUp)
           
         return (gpsIndices, insarIndices, upIndices)
     
@@ -1168,20 +1208,20 @@ class Py2Def(Application):
         print("      Correlating left-lateral and updip response coordinates:")
         sys.stdout.flush()
         distanceRCLU = scipy.spatial.distance.cdist(self.responseCoords, responseCoordsRUD)
-        minIndicesRCLU = numpy.argmin(distanceRCLU, axis=1)
+        minIndicesRCLU = np.argmin(distanceRCLU, axis=1)
         coordsRDiff = self.responseCoords - responseCoordsRUD[minIndicesRCLU,:]
-        coordsRNorm = numpy.linalg.norm(coordsRDiff)
-        if (coordsRNorm > self.epsilon):
+        coordsRNorm = np.linalg.norm(coordsRDiff)
+        if (coordsRNorm > self.siteMatchEpsilon):
             msg = "Different coordinates for updip and left-lateral responses!"
             raise ValueError(msg)
         if (self.defnodeFaultSlipType == '3d'):
             print("      Correlating left-lateral and fault-normal response coordinates:")
             sys.stdout.flush()
             distanceRCLN = scipy.spatial.distance.cdist(self.responseCoords, responseCoordsRNM)
-            minIndicesRCLN = numpy.argmin(distanceRCLN, axis=1)
+            minIndicesRCLN = np.argmin(distanceRCLN, axis=1)
             coordsRDiff = self.responseCoords - responseCoordsRNM[minIndicesRCLN,:]
-            coordsRNorm = numpy.linalg.norm(coordsRDiff)
-            if (coordsRNorm > self.epsilon):
+            coordsRNorm = np.linalg.norm(coordsRDiff)
+            if (coordsRNorm > self.siteMatchEpsilon):
                 msg = "Different coordinates for fault-normal and left-lateral responses!"
                 raise ValueError(msg)
 
@@ -1189,24 +1229,24 @@ class Py2Def(Application):
         # For some reason, the entire array doesn't seem to load unless I use the read_direct method.
         responseDat = dataRLL['vertex_fields/displacement']
         shape = responseDat.shape
-        responseValsLL = numpy.zeros(shape, dtype=numpy.float64)
-        responseValsUD = numpy.zeros(shape, dtype=numpy.float64)
+        responseValsLL = np.zeros(shape, dtype=np.float64)
+        responseValsUD = np.zeros(shape, dtype=np.float64)
         dataRLL['vertex_fields/displacement'].read_direct(responseValsLL)
         self.numImpulses = responseValsLL.shape[0]
         dataRUD['vertex_fields/displacement'].read_direct(responseValsUD)
         responseValsUD = responseValsUD[:,minIndicesRCLU,:]
         if (self.defnodeFaultSlipType == '3d'):
-            responseValsNM = numpy.zeros(shape, dtype=numpy.float64)
+            responseValsNM = np.zeros(shape, dtype=np.float64)
             dataRNM['vertex_fields/displacement'].read_direct(responseValsNM)
             responseValsNM = responseValsNM[:,minIndicesRCLN,:]
 
         # Pad arrays with zeroes if we are keeping unmatched sites.
         if (self.unmatchedSiteOption == 'zero'):
-            padArray = numpy.zeros((self.numImpulses, 1, 3), dtype=numpy.float64)
-            responseValsLL = numpy.append(responseValsLL, padArray, axis=1)
-            responseValsUD = numpy.append(responseValsUD, padArray, axis=1)
+            padArray = np.zeros((self.numImpulses, 1, 3), dtype=np.float64)
+            responseValsLL = np.append(responseValsLL, padArray, axis=1)
+            responseValsUD = np.append(responseValsUD, padArray, axis=1)
             if (self.defnodeFaultSlipType == '3d'):
-                responseValsNM = numpy.append(responseValsNM, padArray, axis=1)
+                responseValsNM = np.append(responseValsNM, padArray, axis=1)
 
         dataRLL.close()
         dataRUD.close()
@@ -1229,7 +1269,7 @@ class Py2Def(Application):
         dataIFLL = h5py.File(llImpulseInfoFile, 'r')
         self.faultCoords = dataIFLL['geometry/vertices'][:]
         self.numFaultVerts = self.faultCoords.shape[0]
-        self.faultConnect = numpy.array(dataIFLL['topology/cells'][:], dtype=numpy.int64)
+        self.faultConnect = np.array(dataIFLL['topology/cells'][:], dtype=np.int64)
         self.numFaultCells = self.faultConnect.shape[0]
         faultNormal = dataIFLL['vertex_fields/normal_dir'][0,:,:]
         faultStrike = dataIFLL['vertex_fields/strike_dir'][0,:,:]
@@ -1238,14 +1278,14 @@ class Py2Def(Application):
         #************** Experiment to make sure normal points upward. **************
         """
         # Don't use this for now.
-        negVert = numpy.where(faultNormal[:,2] < 0.0)
+        negVert = np.where(faultNormal[:,2] < 0.0)
         if (negVert[0].shape[0] > 0):
-            refDir = numpy.array([0.0, 0.0, 1.0], dtype=numpy.float64)
+            refDir = np.array([0.0, 0.0, 1.0], dtype=np.float64)
             faultNormal[negVert,:] *= -1.0
-            faultStrike = numpy.cross(refDir, faultNormal)
-            faultStrike /= numpy.linalg.norm(faultStrike, axis=1).reshape(self.numFaultVerts, 1)
-            faultDip = numpy.cross(faultNormal, faultStrike)
-            faultDip /= numpy.linalg.norm(faultDip, axis=1).reshape(self.numFaultVerts, 1)
+            faultStrike = np.cross(refDir, faultNormal)
+            faultStrike /= np.linalg.norm(faultStrike, axis=1).reshape(self.numFaultVerts, 1)
+            faultDip = np.cross(faultNormal, faultStrike)
+            faultDip /= np.linalg.norm(faultDip, axis=1).reshape(self.numFaultVerts, 1)
         """
         #**************** End experiment. *********************
 
@@ -1258,10 +1298,10 @@ class Py2Def(Application):
         print("      Correlating left-lateral and updip fault coordinates:")
         sys.stdout.flush()
         distanceFCLU = scipy.spatial.distance.cdist(self.faultCoords, faultCoordsFUD)
-        minIndicesFCLU = numpy.argmin(distanceFCLU, axis=1)
+        minIndicesFCLU = np.argmin(distanceFCLU, axis=1)
         coordsFDiff = self.faultCoords - faultCoordsFUD[minIndicesFCLU,:]
-        coordsFNorm = numpy.linalg.norm(coordsFDiff)
-        if (coordsFNorm > self.epsilon):
+        coordsFNorm = np.linalg.norm(coordsFDiff)
+        if (coordsFNorm > self.siteMatchEpsilon):
             msg = "Different coordinates for updip and left-lateral impulses!"
             raise ValueError(msg)
         dataIFUD.close()
@@ -1276,10 +1316,10 @@ class Py2Def(Application):
             print("      Correlating left-lateral and fault-normal fault coordinates:")
             sys.stdout.flush()
             distanceFCLN = scipy.spatial.distance.cdist(self.faultCoords, faultCoordsFNM)
-            minIndicesFCLN = numpy.argmin(distanceFCLN, axis=1)
+            minIndicesFCLN = np.argmin(distanceFCLN, axis=1)
             coordsFDiff = self.faultCoords - faultCoordsFNM[minIndicesFCLN,:]
-            coordsFNorm = numpy.linalg.norm(coordsFDiff)
-            if (coordsFNorm > self.epsilon):
+            coordsFNorm = np.linalg.norm(coordsFDiff)
+            if (coordsFNorm > self.siteMatchEpsilon):
                 msg = "Different coordinates for fault-normal and left-lateral impulses!"
                 raise ValueError(msg)
             dataIFNM.close()
@@ -1292,35 +1332,35 @@ class Py2Def(Application):
         Function to initialize fault and impulse arrays.
         """
         
-        self.llContrib = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
-        self.udContrib = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
-        self.llContribE = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
-        self.udContribE = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
-        self.llContribN = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
-        self.udContribN = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
+        self.llContrib = np.zeros(self.numFaultVerts, dtype=np.float64)
+        self.udContrib = np.zeros(self.numFaultVerts, dtype=np.float64)
+        self.llContribE = np.zeros(self.numFaultVerts, dtype=np.float64)
+        self.udContribE = np.zeros(self.numFaultVerts, dtype=np.float64)
+        self.llContribN = np.zeros(self.numFaultVerts, dtype=np.float64)
+        self.udContribN = np.zeros(self.numFaultVerts, dtype=np.float64)
         if (self.defnodeFaultSlipType == '3d'):
-            self.nmContrib = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
-            self.nmContribE = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
-            self.nmContribN = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
-        self.strikeDeg = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
-        self.dipDeg = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
-        self.rakeDegE = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
-        self.rakeDegN = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
-        self.rakeDeg = numpy.zeros(self.numFaultVerts, dtype=numpy.float64)
+            self.nmContrib = np.zeros(self.numFaultVerts, dtype=np.float64)
+            self.nmContribE = np.zeros(self.numFaultVerts, dtype=np.float64)
+            self.nmContribN = np.zeros(self.numFaultVerts, dtype=np.float64)
+        self.strikeDeg = np.zeros(self.numFaultVerts, dtype=np.float64)
+        self.dipDeg = np.zeros(self.numFaultVerts, dtype=np.float64)
+        self.rakeDegE = np.zeros(self.numFaultVerts, dtype=np.float64)
+        self.rakeDegN = np.zeros(self.numFaultVerts, dtype=np.float64)
+        self.rakeDeg = np.zeros(self.numFaultVerts, dtype=np.float64)
         if (self.gfType == 'defnode'):
             if (self.useGps):
-                self.pyEastGPSGf = numpy.zeros((self.numImpulses, self.numGpsSites, 2), dtype=numpy.float64)
-                self.pyNorthGPSGf = numpy.zeros((self.numImpulses, self.numGpsSites, 2), dtype=numpy.float64)
+                self.pyEastGPSGf = np.zeros((self.numImpulses, self.numGpsSites, 2), dtype=np.float64)
+                self.pyNorthGPSGf = np.zeros((self.numImpulses, self.numGpsSites, 2), dtype=np.float64)
             if (self.useUp):
-                self.pyEastUpGf = numpy.zeros((self.numImpulses, self.numUpSites), dtype=numpy.float64)
-                self.pyNorthUpGf = numpy.zeros((self.numImpulses, self.numUpSites), dtype=numpy.float64)
+                self.pyEastUpGf = np.zeros((self.numImpulses, self.numUpSites), dtype=np.float64)
+                self.pyNorthUpGf = np.zeros((self.numImpulses, self.numUpSites), dtype=np.float64)
         else:
             if (self.useGps):
-                self.pyEastGPSGf = numpy.zeros((self.numImpulses, self.numGpsSites, 3), dtype=numpy.float64)
-                self.pyNorthGPSGf = numpy.zeros((self.numImpulses, self.numGpsSites, 3), dtype=numpy.float64)
+                self.pyEastGPSGf = np.zeros((self.numImpulses, self.numGpsSites, 3), dtype=np.float64)
+                self.pyNorthGPSGf = np.zeros((self.numImpulses, self.numGpsSites, 3), dtype=np.float64)
             if (self.useInsar):
-                self.pyEastInsarGf = numpy.zeros((self.numImpulses, self.numInsarSites, 3), dtype=numpy.float64)
-                self.pyNorthInsarGf = numpy.zeros((self.numImpulses, self.numInsarSites, 3), dtype=numpy.float64)
+                self.pyEastInsarGf = np.zeros((self.numImpulses, self.numInsarSites, 3), dtype=np.float64)
+                self.pyNorthInsarGf = np.zeros((self.numImpulses, self.numInsarSites, 3), dtype=np.float64)
 
         return
 
@@ -1338,12 +1378,12 @@ class Py2Def(Application):
         print("      Reading left-lateral fault impulses:")
         slipDat = dataFLL['vertex_fields/slip']
         shape = slipDat.shape
-        slipLL = numpy.zeros(shape, dtype=numpy.float64)
+        slipLL = np.zeros(shape, dtype=np.float64)
         dataFLL['vertex_fields/slip'].read_direct(slipLL)
         slipLL = slipLL[:,:,0]
 
         print("      Reading updip fault impulses:")
-        slipUD = numpy.zeros(shape, dtype=numpy.float64)
+        slipUD = np.zeros(shape, dtype=np.float64)
         dataFUD['vertex_fields/slip'].read_direct(slipUD)
         slipUD = slipUD[:,:,1]
         dataFLL.close()
@@ -1354,7 +1394,7 @@ class Py2Def(Application):
         if (self.defnodeFaultSlipType == '3d'):
             dataFNM = h5py.File(self.nmImpulseFile, 'r')
             print("      Reading fault-normal fault impulses:")
-            slipNM = numpy.zeros(shape, dtype=numpy.float64)
+            slipNM = np.zeros(shape, dtype=np.float64)
             dataFNM['vertex_fields/slip'].read_direct(slipNM)
             slipNM = slipNM[:,:,2]
             dataFNM.close()
@@ -1407,14 +1447,14 @@ class Py2Def(Application):
                 raise ValueError(msg)
             vertNumLL = slipLLNZ[1][impulseNumLL]
             vertNumUD = minIndicesFCLU[vertNumLL]
-            impulseNumUD = numpy.argwhere(slipUDNZ[1][:] == vertNumUD)[0][0]
+            impulseNumUD = np.argwhere(slipUDNZ[1][:] == vertNumUD)[0][0]
             self.impulseVerts.append(vertNumLL)
 
             responseLL = self.gfScale * responseValsLL[impulseNumLL,:,:]
             responseUD = self.gfScale * responseValsUD[impulseNumUD,:,:]
             if (self.defnodeFaultSlipType == '3d'):
                 vertNumNM = minIndicesFCLN[vertNumLL]
-                impulseNumNM = numpy.argwhere(slipNMNZ[1][:] == vertNumNM)[0][0]
+                impulseNumNM = np.argwhere(slipNMNZ[1][:] == vertNumNM)[0][0]
                 responseNM = self.gfScale * responseValsNM[impulseNumNM,:,:]
 
             if (self.useGps):
@@ -1544,14 +1584,14 @@ class Py2Def(Application):
                 raise ValueError(msg)
             vertNumLL = slipLLNZ[1][impulseNumLL]
             vertNumUD = minIndicesFCLU[vertNumLL]
-            impulseNumUD = numpy.argwhere(slipUDNZ[1][:] == vertNumUD)[0][0]
+            impulseNumUD = np.argwhere(slipUDNZ[1][:] == vertNumUD)[0][0]
             self.impulseVerts.append(vertNumLL)
 
             responseLL = self.gfScale * responseValsLL[impulseNumLL,:,:]
             responseUD = self.gfScale * responseValsUD[impulseNumUD,:,:]
             if (self.defnodeFaultSlipType == '3d'):
                 vertNumNM = minIndicesFCLN[vertNumLL]
-                impulseNumNM = numpy.argwhere(slipNMNZ[1][:] == vertNumNM)[0][0]
+                impulseNumNM = np.argwhere(slipNMNZ[1][:] == vertNumNM)[0][0]
                 responseNM = self.gfScale * responseValsNM[impulseNumNM,:,:]
 
             if (self.useGps):
@@ -1654,7 +1694,7 @@ class Py2Def(Application):
         if (gfType == 'u'):
             gfFortran = '(A1, 2f10.4, (2d20.13), 1x, a8)'
         gfFmt = FortranRecordReader(gfFortran)
-        gfCoordsGeog = numpy.zeros((numSites, 2), dtype=numpy.float64)
+        gfCoordsGeog = np.zeros((numSites, 2), dtype=np.float64)
         sites = []
         pointNum = 0
 
@@ -1667,16 +1707,16 @@ class Py2Def(Application):
                 sites.append(site)
             if (coordsGeogCurrent is not None):
                 diff = coordsGeogCurrent - gfCoordsGeog[pointNum,:]
-                norm = numpy.linalg.norm(diff, axis=1)
-                indMin = numpy.argmin(norm)
+                norm = np.linalg.norm(diff, axis=1)
+                indMin = np.argmin(norm)
                 if (norm[indMin] > epsilon):
-                    coordsGeogCurrent = numpy.append(coordsGeogCurrent, gfCoordsGeog[pointNum,:].reshape(1,2), axis=0)
+                    coordsGeogCurrent = np.append(coordsGeogCurrent, gfCoordsGeog[pointNum,:].reshape(1,2), axis=0)
             else:
                 coordsGeogCurrent = gfCoordsGeog[pointNum,:].reshape(1,2)
             pointNum += 1
 
         (x, y) = transform(self.projWGS84, self.projPylith, coordsGeogCurrent[:,0], coordsGeogCurrent[:,1])
-        coordsCartCurrent = numpy.column_stack((x, y))
+        coordsCartCurrent = np.column_stack((x, y))
         numTotalSites = coordsGeogCurrent.shape[0]
 
         if (gfType == 'g'):
@@ -1698,23 +1738,23 @@ class Py2Def(Application):
         numSites = len(fLines) - 1
         gfFortran = '(A1, 2f10.4, 1x, (6d20.13))'
         gfFmt = FortranRecordReader(gfFortran)
-        gfCoordsGeog = numpy.zeros((numSites, 2), dtype=numpy.float64)
+        gfCoordsGeog = np.zeros((numSites, 2), dtype=np.float64)
         pointNum = 0
 
         for lineNum in range(1, numSites + 1):
             (type, gfCoordsGeog[pointNum,0], gfCoordsGeog[pointNum,1], gf1, gf2, gf3, gf4, gf5, gf6) = gfFmt.read(fLines[lineNum])
             if (coordsGeogCurrent is not None):
                 diff = coordsGeogCurrent - gfCoordsGeog[pointNum,:]
-                norm = numpy.linalg.norm(diff, axis=1)
-                indMin = numpy.argmin(norm)
+                norm = np.linalg.norm(diff, axis=1)
+                indMin = np.argmin(norm)
                 if (norm[indMin] > epsilon):
-                    coordsGeogCurrent = numpy.append(coordsGeogCurrent, gfCoordsGeog[pointNum,:].reshape(1,2), axis=0)
+                    coordsGeogCurrent = np.append(coordsGeogCurrent, gfCoordsGeog[pointNum,:].reshape(1,2), axis=0)
             else:
                 coordsGeogCurrent = gfCoordsGeog[pointNum,:].reshape(1,2)
             pointNum += 1
 
         (x, y) = transform(self.projWGS84, self.projPylith, coordsGeogCurrent[:,0], coordsGeogCurrent[:,1])
-        coordsCartCurrent = numpy.column_stack((x, y))
+        coordsCartCurrent = np.column_stack((x, y))
         numTotalSites = coordsGeogCurrent.shape[0]
 
         return (numTotalSites, coordsGeogCurrent, coordsCartCurrent)
@@ -1768,8 +1808,8 @@ class Py2Def(Application):
             self.numUpSites = 0
 
         # Coordinate arrays for Defnode.
-        defNodeCoordsGeog = numpy.zeros((self.numDefNodes, 3), dtype=numpy.float64)
-        self.defNodeCoords = numpy.zeros((self.numDefNodes, 3), dtype=numpy.float64)
+        defNodeCoordsGeog = np.zeros((self.numDefNodes, 3), dtype=np.float64)
+        self.defNodeCoords = np.zeros((self.numDefNodes, 3), dtype=np.float64)
 
         # Loop over Defnode nodes.
         for lineNum in range(self.numDefNodes):
@@ -1815,15 +1855,15 @@ class Py2Def(Application):
 
         # Sort sites by lon, then lat.
         if self.useGps:
-            inds = numpy.lexsort((self.gpsCoordsGeog[:,1], self.gpsCoordsGeog[:,0]))
+            inds = np.lexsort((self.gpsCoordsGeog[:,1], self.gpsCoordsGeog[:,0]))
             self.gpsCoordsGeog = self.gpsCoordsGeog[inds,:]
             self.gpsCoordsCart = self.gpsCoordsCart[inds,:]
         if self.useUp:
-            inds = numpy.lexsort((self.upCoordsGeog[:,1], self.upCoordsGeog[:,0]))
+            inds = np.lexsort((self.upCoordsGeog[:,1], self.upCoordsGeog[:,0]))
             self.upCoordsGeog = self.upCoordsGeog[inds,:]
             self.upCoordsCart = self.upCoordsCart[inds,:]
         if self.useInsar:
-            inds = numpy.lexsort((self.insarCoordsGeog[:,1], self.insarCoordsGeog[:,0]))
+            inds = np.lexsort((self.insarCoordsGeog[:,1], self.insarCoordsGeog[:,0]))
             self.insarCoordsGeog = self.insarCoordsGeog[inds,:]
             self.insarCoordsCart = self.insarCoordsCart[inds,:]
         self._fixDefnodeHeaders()
@@ -1872,7 +1912,7 @@ class Py2Def(Application):
         numDdCells = self.numDdNodes - 1
         numAsCells = self.numAsNodes - 1
         self.numDefCells = numDdCells*numAsCells
-        self.defCellConnect = numpy.zeros((self.numDefCells, 4), dtype=numpy.int64)
+        self.defCellConnect = np.zeros((self.numDefCells, 4), dtype=np.int64)
         cellNum = 0
 
         for asCell in range(numAsCells):

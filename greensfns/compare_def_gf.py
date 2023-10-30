@@ -1,0 +1,437 @@
+#!/usr/bin/env python
+"""
+This is a script to read two sets of DEFNODE Green's functions, computes
+the differences and outputs the results in a VTK file.
+"""
+
+import pdb
+import os
+import glob
+import platform
+import matplotlib.pyplot as plt
+
+# For now, if we are running Python 2, we will also assume PyLith 2.
+PYTHON_MAJOR_VERSION = int(platform.python_version_tuple()[0])
+
+if (PYTHON_MAJOR_VERSION == 2):
+    from pathlib2 import Path
+    from pyre.applications.Script import Script as Application
+    import pyre.units.unitparser
+    from pyre.units.length import km
+    from pyre.units.length import mm
+else:
+    from pathlib import Path
+    from pythia.pyre.applications.Script import Script as Application
+    import pythia.pyre.units.unitparser
+    from pythia.pyre.units.length import km
+    from pythia.pyre.units.length import mm
+
+import numpy as np
+import scipy.spatial
+from scipy.stats import norm
+
+class CompareDefGf(Application):
+    """
+    This is a script to read Green's function info from DEFNODE/TDEFNODE
+    and create VTK output.
+    """
+
+    ## Python object for managing CompareDefGf facilities and properties.
+    ##
+    ## \b Properties
+    ## @li \b defnode_ref_vtk_dir Directory containing VTK files with reference Defnode GF.
+    ## @li \b defnode_compare_vtk_dir Directory containing VTK files with Defnode GF to compare to reference.
+    ## @li \b num_histogram_bins Number of bins in comparison histogram.
+    ## @li \b histogram_title Title to put on histogram.
+    ## @li \b histogram_color Color of histogram.
+    ## @li \b histogram_plot_normal Superimpose normal distribution on histogram?
+    ## @li \b align_histograms Whether to align histograms along the x-axis.
+    ## @li \b site_match_epsilon Epsilon value for matching site coordinates (meters).
+    ## @li \b vtk_response_root Root filename for VTK response output.
+    ## @li \b vtk_response_prefix Prefix given to response output names.
+    ## @li \b histogram_output_type Output image file or use matplotlib GUI.
+    ## @li \b histogram_output_file Histogram output file name if image output is being used.
+
+    if (PYTHON_MAJOR_VERSION == 2):
+        import pyre.inventory as inventory
+    else:
+        import pythia.pyre.inventory as inventory
+
+    defnodeRefVtkDir = inventory.str("defnode_ref_vtk_dir", default="tdef")
+    defnodeRefVtkDir.meta['tip'] = "Directory containing VTK files with reference Defnode Green's functions."
+
+    defnodeCompareVtkDir = inventory.str("defnode_compare_vtk_dir", default="pyhet")
+    defnodeCompareVtkDir.meta['tip'] = "Directory containing VTK files with Defnode GF to compare to reference."
+
+    numHistogramBins = inventory.int("num_histogram_bins", default=10)
+    numHistogramBins.meta['tip'] = "Number of bins in comparison histogram."
+
+    histogramTitle = inventory.str("histogram_title", default="Green's function differences")
+    histogramTitle.meta['tip'] = "Title to put on histogram."
+
+    histogramColor = inventory.str("histogram_color", default="red")
+    histogramColor.meta['tip'] = "Histogram color."
+
+    histogramPlotNormal = inventory.bool("histogram_plot_normal", default=False)
+    histogramPlotNormal.meta['tip'] = "Superimpose normal distribution on histogram?"
+
+    alignHistograms = inventory.bool("align_histograms", default=True)
+    alignHistograms.meta['tip'] = "Whether to align histograms along the x-axis."
+
+    siteMatchEpsilon = inventory.float("site_match_epsilon", default=1.0)
+    siteMatchEpsilon.meta['tip'] = "Epsilon value for matching site coordinates."
+
+    vtkOutputDir = inventory.str("vtk_output_dir", default="greensfns_response")
+    vtkOutputDir.meta['tip'] = "Output directory for VTK response output."
+
+    vtkResponsePrefix = inventory.str("vtk_response_prefix", default="tdef_")
+    vtkResponsePrefix.meta['tip'] = "Prefix given to response output names."
+
+    histogramOutputType = inventory.str("histogram_output_type", default="gui", validator=inventory.choice(["gui", "file"]))
+    histogramOutputType.meta['tip'] = "Output image file or use matplotlib GUI."
+
+    histogramOutputFile = inventory.str("histogram_output_file", default="histogram.png")
+    histogramOutputFile.meta['tip'] = "Histogram output file name if image output is being used."
+                                    
+    
+    # PUBLIC METHODS /////////////////////////////////////////////////////
+
+    def __init__(self, name="compare_def_gf"):
+        Application.__init__(self, name)
+        self.numImpulses = 0
+        self.numResponses = 0
+        self.refResponseFiles = []
+        self.compareResponseFiles = []
+
+        self.outFieldNames = ['ref_response_E', 'ref_response_N', 'ref_response_Total',
+                              'compare_response_E', 'compare_response_N', 'compare_response_Total',
+                              'diff_response_E', 'diff_response_N', 'diff_response_Total',
+                              'diff_response_norm_E', 'diff_response_norm_N', 'diff_response_norm_Total',
+                              'diff_response_norm_pct_E', 'diff_response_norm_pct_N', 'diff_response_norm_pct_Total']
+        self.outFieldTypes = ['VECTORS', 'VECTORS', 'VECTORS',
+                              'VECTORS', 'VECTORS', 'VECTORS',
+                              'VECTORS', 'VECTORS', 'VECTORS',
+                              'SCALARS', 'SCALARS', 'SCALARS',
+                              'SCALARS', 'SCALARS', 'SCALARS']
+
+        return
+
+
+    def main(self):
+        # pdb.set_trace()
+        print("Reference directory:   %s" % self.defnodeRefVtkDir)
+        print("Comparison directory:  %s" % self.defnodeCompareVtkDir)
+        self._getFileLists()
+        self._compareResponses()
+        self._createHistogram()
+
+        return
+                                    
+
+    # PRIVATE METHODS /////////////////////////////////////////////////////
+
+    def _configure(self):
+        """
+        Setup members using inventory.
+        """
+        Application._configure(self)
+
+        # pathName = os.path.dirname(self.vtkOutputDir)
+        self.outputDir = self._checkDir(self.vtkOutputDir)
+
+        return
+
+
+    def _checkDir(self, subDir):
+        """
+        Function to see if directory exists and create it if necessary.
+        """
+        if os.path.isabs(subDir):
+            newDir = subDir
+        else:
+            newDir = os.path.join(os.getcwd(), subDir)
+
+        testDir = os.path.isdir(newDir)
+        testFile = os.path.isfile(newDir)
+
+        if (testDir == False):
+            if (testFile == True):
+                msg = "Subdirectory exists as a file."
+                raise ValueError(msg)
+            else:
+                os.makedirs(newDir)
+
+        return newDir
+
+
+    def _createHistogram(self):
+        """
+        Create histogram of percentage differences.
+        """
+        print("  Creating histograms:")
+        numPlots = 3
+        (fig, axs) = plt.subplots(3, 1, tight_layout=True, sharex=self.alignHistograms)
+        plotTitles = ['East', 'North', 'Up']
+        eastDiff = self.totDiffTotE.flatten()
+        northDiff = self.totDiffTotN.flatten()
+        upDiff = self.totDiffTotU.flatten()
+        eastRef = self.totRefResponseE.flatten()
+        northRef = self.totRefResponseN.flatten()
+        upRef = self.totRefResponseU.flatten()
+        vals = [eastDiff, northDiff, upDiff]
+        refVals = [eastRef, northRef, upRef]
+
+        if (self.alignHistograms):
+            eastMax = np.amax(np.abs(eastDiff))
+            northMax = np.amax(np.abs(northDiff))
+            upMax = np.amax(np.abs(upDiff))
+            maxVal = max(eastMax, northMax, upMax)
+            axs[0].hist(eastDiff, bins=self.numHistogramBins, range=(-maxVal, maxVal), color=self.histogramColor, density=True)
+            axs[1].hist(northDiff, bins=self.numHistogramBins, range=(-maxVal, maxVal), color=self.histogramColor, density=True)
+            axs[2].hist(upDiff, bins=self.numHistogramBins, range=(-maxVal, maxVal), color=self.histogramColor, density=True)
+        else:
+            axs[0].hist(eastDiff, bins=self.numHistogramBins, color=self.histogramColor, density=True)
+            axs[1].hist(northDiff, bins=self.numHistogramBins, color=self.histogramColor, density=True)
+            axs[2].hist(upDiff, bins=self.numHistogramBins, color=self.histogramColor, density=True)
+
+        for plotNum in range(numPlots):
+            axs[plotNum].set_title(plotTitles[plotNum])
+            minVal = np.amin(vals[plotNum])
+            maxVal = np.amax(vals[plotNum])
+            meanVal = np.mean(vals[plotNum])
+            stdVal = np.std(vals[plotNum])
+
+            # Print statistics info on plot.
+            text = \
+                'Mean:     %g\n' % meanVal + \
+                'Min:      %g\n' % minVal + \
+                'Max:      %g\n' % maxVal + \
+                'Std Dev:  %g\n' % stdVal
+            meanRefMag = np.mean(np.abs(refVals[plotNum]))
+            text2 = 'Mean ref value magnitude:\n%g' % meanRefMag
+            (xMin, xMax) = axs[plotNum].get_xlim()
+            (yMin, yMax) = axs[plotNum].get_ylim()
+            xPos = 0.3*xMax
+            yPos = 0.05*yMax
+            xNeg = 0.95*xMin
+            yNeg = 0.6*yMax
+            axs[plotNum].text(xPos, yPos, text)
+            axs[plotNum].text(xNeg, yNeg, text2)
+
+            # Create superimposed normal distribution, if requested.
+            if (self.histogramPlotNormal):
+                (mu, std) = norm.fit(vals[plotNum])
+                x = np.linspace(xMin, xMax, 400)
+                p = norm.pdf(x, mu, std)
+                axs[plotNum].plot(x, p, 'k', linewidth=1)
+
+        fig.suptitle(self.histogramTitle)
+
+        if (self.histogramOutputType == 'gui'):
+            plt.show()
+        else:
+            plt.savefig(self.histogramOutputFile)
+    
+        return
+
+
+    def _writeVtk(self, outFile, coords, refE, refN, refTot, compareE, compareN, compareTot):
+        """
+        Write a VTK file and compute some statistics.
+        """
+        numResponses = coords.shape[0]
+        vtkHead = "# vtk DataFile Version 2.0\n" + \
+            "Response comparison\n"+ \
+            "ASCII\n" + \
+            "DATASET POLYDATA\n" + \
+            "POINTS %d double\n" % numResponses
+
+        o = open(outFile, 'w')
+        o.write(vtkHead)
+        np.savetxt(o, coords)
+
+        diffE = refE - compareE
+        diffN = refN - compareN
+        diffTot = refTot - compareTot
+
+        diffTotPctE = 100.0*diffTot[:,0]/refTot[:,0]
+        diffTotPctN = 100.0*diffTot[:,1]/refTot[:,1]
+        diffTotPctU = 100.0*diffTot[:,2]/refTot[:,2]
+
+        diffNormE = np.linalg.norm(diffE, axis=1)
+        diffNormN = np.linalg.norm(diffN, axis=1)
+        diffNormTot = np.linalg.norm(diffTot, axis=1)
+
+        refNormE = np.linalg.norm(refE, axis=1)
+        refNormN = np.linalg.norm(refN, axis=1)
+        refNormTot = np.linalg.norm(refTot, axis=1)
+
+        diffNormPctE = 100.0*(diffNormE/refNormE)
+        diffNormPctN = 100.0*(diffNormN/refNormN)
+        diffNormPctTot = 100.0*(diffNormTot/refNormTot)
+
+        meanDiffNormPctE = np.mean(diffNormPctE)
+        meanDiffNormPctN = np.mean(diffNormPctN)
+        meanDiffNormPctTot = np.mean(diffNormPctTot)
+
+        outFieldVals = [refE, refN, refTot, compareE, compareN, compareTot, diffE, diffN, diffTot,
+                        diffNormE, diffNormN, diffNormTot, diffNormPctE, diffNormPctN, diffNormPctTot]
+
+        numFields = len(self.outFieldNames)
+        o.write("POINT_DATA %d\n" % numResponses)
+        for fieldNum in range(numFields):
+            head = self.outFieldTypes[fieldNum] + ' ' + self.outFieldNames[fieldNum] + ' double'
+            if (self.outFieldTypes[fieldNum] == "SCALARS"):
+                head += ' 1\nLOOKUP_TABLE default\n'
+
+            head += '\n'
+            o.write(head)
+            np.savetxt(o, outFieldVals[fieldNum])
+
+        o.close()
+
+        return (meanDiffNormPctE, meanDiffNormPctN, meanDiffNormPctTot, diffTot, diffTotPctE, diffTotPctN, diffTotPctU)
+
+
+    def _matchCoords(self, refCoords, compareCoords):
+        """
+        Provide indices that match the two sets of coordinates to each other.
+        """
+        numRef = refCoords.shape[0]
+        numCompare = compareCoords.shape[0]
+        distances = scipy.spatial.distance.cdist(refCoords, compareCoords)
+        minIndices = np.argmin(distances, axis=0)
+        refInds = []
+        compareInds = []
+        for compareSiteNum in range(numCompare):
+            refSiteNum = minIndices[compareSiteNum]
+            if (distances[refSiteNum, compareSiteNum] < self.siteMatchEpsilon):
+                refInds.append(refSiteNum)
+                compareInds.append(compareSiteNum)
+        return (refInds, compareInds)
+
+
+    def _readResponseFile(self, fileName):
+        """
+        Read response VTK file.
+        This is very kludgy and assumes a particular VTK structure.
+        """
+        f = open(fileName, 'r')
+        lines = f.readlines()
+        numPoints = int(lines[4].split(' ')[1])
+        coords = np.zeros((numPoints, 3), dtype=np.float64)
+        respE = np.zeros((numPoints, 3), dtype=np.float64)
+        respN = np.zeros((numPoints, 3), dtype=np.float64)
+        respTot = np.zeros((numPoints, 3), dtype=np.float64)
+        coordOff = 5
+        respEOff = 7+numPoints
+        respNOff = 8+2*numPoints
+        respTotOff = 9+3*numPoints
+        for vertNum in range(numPoints):
+            x = [float(i) for i in lines[vertNum + coordOff].split(' ')]
+            rE = [float(i) for i in lines[vertNum + respEOff].split(' ')]
+            rN = [float(i) for i in lines[vertNum + respNOff].split(' ')]
+            rTot = [float(i) for i in lines[vertNum + respTotOff].split(' ')]
+            coords[vertNum,:] = x
+            respE[vertNum,:] = rE
+            respN[vertNum,:] = rN
+            respTot[vertNum,:] = rTot
+        
+        return (coords, respE, respN, respTot)
+
+
+    def _compareResponses(self):
+        """
+        Loop over response files and compare them.
+        """
+
+        print("  Comparing responses:")
+
+        # Loop over input files.
+        totDiffNormPctE = 0.0
+        totDiffNormPctN = 0.0
+        totDiffNormPctTot = 0.0
+        for impulse in range(self.numImpulses):
+            refFile = self.refResponseFiles[impulse]
+            compareFile = self.compareResponseFiles[impulse]
+            fileName = self.vtkResponsePrefix + '_r' + repr(impulse).rjust(4, '0') + ".vtk"
+            outFile = os.path.normpath(os.path.join(self.outputDir, fileName))
+            (refCoords, refResponseE, refResponseN, refResponseTot) = self._readResponseFile(refFile)
+            (compareCoords, compareResponseE, compareResponseN, compareResponseTot) = self._readResponseFile(compareFile)
+            if (impulse == 0):
+                (refInds, compareInds) = self._matchCoords(refCoords, compareCoords)
+                self.numResponses = len(refInds)
+                self.totDiffTotPctE = np.zeros((self.numImpulses,self.numResponses), dtype=np.float64)
+                self.totDiffTotPctN = np.zeros((self.numImpulses,self.numResponses), dtype=np.float64)
+                self.totDiffTotPctU = np.zeros((self.numImpulses,self.numResponses), dtype=np.float64)
+                self.totDiffTotE = np.zeros((self.numImpulses,self.numResponses), dtype=np.float64)
+                self.totDiffTotN = np.zeros((self.numImpulses,self.numResponses), dtype=np.float64)
+                self.totDiffTotU = np.zeros((self.numImpulses,self.numResponses), dtype=np.float64)
+                self.totRefResponseE = np.zeros((self.numImpulses,self.numResponses), dtype=np.float64)
+                self.totRefResponseN = np.zeros((self.numImpulses,self.numResponses), dtype=np.float64)
+                self.totRefResponseU = np.zeros((self.numImpulses,self.numResponses), dtype=np.float64)
+            refE = refResponseE[refInds,:]
+            refN = refResponseN[refInds,:]
+            refTot = refResponseTot[refInds,:]
+            self.totRefResponseE[impulse,:] = refTot[:,0]
+            self.totRefResponseN[impulse,:] = refTot[:,1]
+            self.totRefResponseU[impulse,:] = refTot[:,2]
+            compareE = compareResponseE[compareInds,:]
+            compareN = compareResponseN[compareInds,:]
+            compareTot = compareResponseTot[compareInds,:]
+            coordsOut = refCoords[refInds,:]
+            (meanDiffNormPctE, meanDiffNormPctN, meanDiffNormPctTot, diffTot, diffTotPctE, diffTotPctN, diffTotPctU) = \
+                self._writeVtk(outFile, coordsOut, refE, refN, refTot, compareE, compareN, compareTot)
+            self.totDiffTotPctE[impulse,:] = diffTotPctE
+            self.totDiffTotPctN[impulse,:] = diffTotPctN
+            self.totDiffTotPctU[impulse,:] = diffTotPctU
+            self.totDiffTotE[impulse,:] = diffTot[:,0]
+            self.totDiffTotN[impulse,:] = diffTot[:,1]
+            self.totDiffTotU[impulse,:] = diffTot[:,2]
+            totDiffNormPctE += meanDiffNormPctE
+            totDiffNormPctN += meanDiffNormPctN
+            totDiffNormPctTot += meanDiffNormPctTot
+
+        faultMeanDiffPctE = totDiffNormPctE/float(self.numImpulses)
+        faultMeanDiffPctN = totDiffNormPctN/float(self.numImpulses)
+        faultMeanDiffPctTot = totDiffNormPctTot/float(self.numImpulses)
+
+        print("    Mean East response percentage difference:   %g" % faultMeanDiffPctE)
+        print("    Mean North response percentage difference:  %g" % faultMeanDiffPctN)
+        print("    Mean Total response percentage difference:  %g" % faultMeanDiffPctTot)
+
+        return
+
+
+    def _getFileLists(self):
+        """
+        Function to get lists of response files.
+        """
+
+        print("  Getting lists of response files:")
+
+        faultString = '*_response_*'
+
+        totalRefResponsePath = os.path.normpath(os.path.join(os.getcwd(), self.defnodeRefVtkDir))
+        searchRefResponse = os.path.join(totalRefResponsePath, faultString)
+        self.refResponseFiles = glob.glob(searchRefResponse)
+        self.refResponseFiles.sort()
+        self.numImpulses = len(self.refResponseFiles)
+
+        totalCompareResponsePath = os.path.normpath(os.path.join(os.getcwd(), self.defnodeCompareVtkDir))
+        searchCompareResponse = os.path.join(totalCompareResponsePath, faultString)
+        self.compareResponseFiles = glob.glob(searchCompareResponse)
+        self.compareResponseFiles.sort()
+        numCompareImpulses = len(self.compareResponseFiles)
+        if (numCompareImpulses != self.numImpulses):
+            msg = "Number of impulses differ for reference and comparison."
+            raise ValueError(msg)
+
+        return
+  
+# ----------------------------------------------------------------------
+if __name__ == '__main__':
+    app = CompareDefGf()
+    app.run()
+
+# End of file
