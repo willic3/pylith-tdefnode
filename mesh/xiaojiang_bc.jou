@@ -1,8 +1,11 @@
+delete nodeset all
+delete block all
+delete group all
 # ----------------------------------------------------------------------
 # Create blocks for materials
 # ----------------------------------------------------------------------
 block 1 volume all
-block 1 name "domain"
+block 1 name "domain_material"
 
 # ----------------------------------------------------------------------
 # Create nodeset for +x face
@@ -92,3 +95,4 @@ nodeset 106 name "inner_east"
 
 nodeset 107 group inner_west
 nodeset 107 name "inner_west"
+

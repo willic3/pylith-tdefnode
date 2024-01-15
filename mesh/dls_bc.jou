@@ -2,7 +2,7 @@
 # Create blocks for materials
 # ----------------------------------------------------------------------
 block 1 volume all
-block 1 name "domain"
+block 1 name "domain_material"
 
 # ----------------------------------------------------------------------
 # Create nodeset for +x face
