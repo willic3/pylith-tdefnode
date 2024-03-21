@@ -12,12 +12,21 @@ import math
 from pyproj import Transformer
 from fortranformat import FortranRecordReader
 
-import pythia.pyre.units
-from pythia.pyre.units.length import km
-from pythia.pyre.units.length import m
-from pythia.pyre.units.angle import degree
+# If we are running Python 2, we will also assume PyLith 2.
+PYTHON_MAJOR_VERSION = int(platform.python_version_tuple()[0])
 
-from pythia.pyre.applications.Script import Script as Application
+if (PYTHON_MAJOR_VERSION == 2):
+    from pyre.applications.Script import Script as Application
+    from pyre.units import parser as unitparser
+    from pyre.units.length import km
+    from pyre.units.length import m
+    from pyre.units.angle import degree
+else:
+    from pythia.pyre.applications.Script import Script as Application
+    from pythia.pyre.units import parser as unitparser
+    from pythia.pyre.units.length import km
+    from pythia.pyre.units.length import m
+    from pythia.pyre.units.angle import degree
 
 class CreateTdefnodeQuads(Application):
     """
@@ -25,7 +34,6 @@ class CreateTdefnodeQuads(Application):
     create Cubit/Trelis journal files to generate the corresponding geometry.
     """
 
-    import pythia.pyre.inventory as inventory
     ## Python object for managing CreateTdefnodeQuads facilities and properties.
     ##
     ## \b Properties
@@ -35,6 +43,11 @@ class CreateTdefnodeQuads(Application):
     ## @li \b near_surf_eps Points this close will be projected to surface.
     ## @li \b output_projection Proj4 parameters defining output projection.
     ## @li \b output_rotation Rotation applied after projection.
+
+    if (PYTHON_MAJOR_VERSION == 2):
+        import pyre.inventory as inventory
+    else:
+        import pythia.pyre.inventory as inventory
 
     nodFile = inventory.str("nod_file", default="faults.nod")
     nodFile.meta['tip'] = "The name of the .nod file to read."
@@ -79,9 +92,9 @@ class CreateTdefnodeQuads(Application):
 
 
     def main(self):
-        # pdb.set_trace()
+        pdb.set_trace()
         self._readExtends()
-        self._readFaults()
+        self._processFaults()
 
         return
                                     
@@ -110,6 +123,8 @@ class CreateTdefnodeQuads(Application):
                 " 8f8.1, 1x, 1pe10.3)"
             self.nodFmt = FortranRecordReader(nodFmt)
 
+        self.transWGS84ToOutput = Transformer.from_crs(self.WGS84, self.outputProjection, always_xy=True)
+
         return
     
 
@@ -124,7 +139,7 @@ class CreateTdefnodeQuads(Application):
         faultDownExtends = []
         faultAsNegExtends = []
         faultAsPosExtends = []
-        uparser = pyre.units.parser()
+        uparser = unitparser()
         for lineNum in range(len(lines)):
             line = lines[lineNum]
             if (line.startswith('#') == False):
@@ -146,7 +161,7 @@ class CreateTdefnodeQuads(Application):
         return
       
 
-    def _readFaults(self):
+    def _processFaults(self):
         """
         Function to loop over faults and get/write mesh info for each one.
         """
@@ -197,11 +212,11 @@ class CreateTdefnodeQuads(Application):
             zIndex[lineNum] = vals[3]
             lon[lineNum] = vals[6]
             lat[lineNum] = vals[7]
-            elev[lineNum] = -1000.0 * vals[8]
+            elev[lineNum] = -1000.0*vals[8]
             numAsNodes = max(numAsNodes, xIndex[lineNum])
             numDdNodes = max(numDdNodes, zIndex[lineNum])
 
-        (x, y, z) = transform(self.projWGS84, self.outProj, lon, lat, elev)
+        (x, y, z) = self.transWGS84ToOutput.transform(lon, lat, elev)
         coords = np.column_stack((x, y, z))
         coordsRot = np.dot(self.rotMat, coords.transpose()).transpose()
         (coordsExt, numAsNodesExt, numDdNodesExt) = self._createExtCoords(coordsRot, numAsNodes, numDdNodes,
@@ -210,7 +225,7 @@ class CreateTdefnodeQuads(Application):
                                                                           self.faultExtendsAsNegDict[faultName],
                                                                           self.faultExtendsAsPosDict[faultName])
 
-        numNodesExt = numAsNodesExt * numDdNodesExt
+        numNodesExt = numAsNodesExt*numDdNodesExt
         vertInds = np.arange(1, numNodesExt + 1, step=1, dtype=np.int32).reshape((numAsNodesExt, numDdNodesExt))
 
         # Write VTK file.
