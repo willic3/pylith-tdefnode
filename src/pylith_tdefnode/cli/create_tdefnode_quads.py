@@ -6,7 +6,7 @@ Note that the .nod files from Defnode/Tdefnode are assumed to be WGS84 geographi
 coordinates.
 """
 
-import pdb
+# import pdb
 import numpy as np
 import math
 from pyproj import Transformer
@@ -92,7 +92,7 @@ class CreateTdefnodeQuads(Application):
 
 
     def main(self):
-        pdb.set_trace()
+        # pdb.set_trace()
         self._readExtends()
         self._processFaults()
 

@@ -14,7 +14,6 @@
 
 import math
 import os
-import re
 import sys
 import glob
 import platform
@@ -25,15 +24,9 @@ PYTHON_MAJOR_VERSION = int(platform.python_version_tuple()[0])
 if (PYTHON_MAJOR_VERSION == 2):
     from pathlib2 import Path
     from pyre.applications.Script import Script as Application
-    import pyre.units.unitparser
-    from pyre.units.length import km
-    from pyre.units.length import mm
 else:
     from pathlib import Path
     from pythia.pyre.applications.Script import Script as Application
-    import pythia.pyre.units.unitparser
-    from pythia.pyre.units.length import km
-    from pythia.pyre.units.length import mm
 
 import numpy as np
 import h5py

@@ -4,7 +4,7 @@ This is a script to read Green's function info from DEFNODE and create a
 VTK file. This version forms quadrilateral cells.
 """
 
-import pdb
+# import pdb
 import os
 import glob
 import platform
@@ -13,19 +13,11 @@ import platform
 PYTHON_MAJOR_VERSION = int(platform.python_version_tuple()[0])
 
 if (PYTHON_MAJOR_VERSION == 2):
-    from pathlib2 import Path
     from pyre.applications.Script import Script as Application
-    import pyre.units.unitparser
-    from pyre.units.length import km
-    from pyre.units.length import mm
 else:
-    from pathlib import Path
     from pythia.pyre.applications.Script import Script as Application
-    import pythia.pyre.units.unitparser
-    from pythia.pyre.units.length import km
-    from pythia.pyre.units.length import mm
 
-import numpy
+import numpy as np
 import scipy.spatial
 from pyproj import Proj
 from pyproj import transform
@@ -245,19 +237,19 @@ class ReadDefGf(Application):
 
         if (self.numGpsFiles != 0):
             self.gpsResponseCoordsGeog = self._getSiteCoords(self.GpsFiles[self.gpsReprSite], 'gps')
-            self.gpsResponseCoords = numpy.zeros((self.numGpsResponses, 3), dtype=numpy.float64)
+            self.gpsResponseCoords = np.zeros((self.numGpsResponses, 3), dtype=np.float64)
             (self.gpsResponseCoords[:,0], self.gpsResponseCoords[:,1]) = transform(
                 self.projWGS84, self.outProj, self.gpsResponseCoordsGeog[:,0], self.gpsResponseCoordsGeog[:,1])
             self.gpsResponseTree = scipy.spatial.cKDTree(self.gpsResponseCoordsGeog)
         if (self.numInsarFiles != 0):
             self.insarResponseCoordsGeog = self._getSiteCoords(self.InsarFiles[self.insarReprSite], 'insar')
-            self.insarResponseCoords = numpy.zeros((self.numInsarResponses, 3), dtype=numpy.float64)
+            self.insarResponseCoords = np.zeros((self.numInsarResponses, 3), dtype=np.float64)
             (self.insarResponseCoords[:,0], self.insarResponseCoords[:,1]) = transform(
                 self.projWGS84, self.outProj, self.insarResponseCoordsGeog[:,0], self.insarResponseCoordsGeog[:,1])
             self.insarResponseTree = scipy.spatial.cKDTree(self.insarResponseCoordsGeog)
         if (self.numUpFiles != 0):
             self.upResponseCoordsGeog = self._getSiteCoords(self.UpFiles[self.upReprSite], 'up')
-            self.upResponseCoords = numpy.zeros((self.numUpResponses, 3), dtype=numpy.float64)
+            self.upResponseCoords = np.zeros((self.numUpResponses, 3), dtype=np.float64)
             (self.upResponseCoords[:,0], self.upResponseCoords[:,1]) = transform(
                 self.projWGS84, self.outProj, self.upResponseCoordsGeog[:,0], self.upResponseCoordsGeog[:,1])
             self.upResponseTree = scipy.spatial.cKDTree(self.upResponseCoordsGeog)
@@ -280,7 +272,7 @@ class ReadDefGf(Application):
         lines = f.readlines()
         numLines = len(lines)
         numSites = numLines - 1
-        coords = numpy.zeros((numSites, 2), dtype=numpy.float64)
+        coords = np.zeros((numSites, 2), dtype=np.float64)
         siteNum = 0
 
         for lineNum in range(1, numLines):
@@ -300,13 +292,13 @@ class ReadDefGf(Application):
         """
 
         eps = 0.001
-        coordsFind = numpy.column_stack((lon, lat))
+        coordsFind = np.column_stack((lon, lat))
         coordInds = refCoordTree.query_ball_point(coordsFind, eps)
-        checkLen = numpy.array([len(i)>1 for i in coordInds])
-        if (numpy.any(checkLen)):
+        checkLen = np.array([len(i)>1 for i in coordInds])
+        if (np.any(checkLen)):
             msg = 'More than one matching site coordinate found.'
             raise ValueError(msg)
-        matchInds = numpy.array([i[0] for i in coordInds])
+        matchInds = np.array([i[0] for i in coordInds])
 
         return matchInds
 
@@ -327,11 +319,11 @@ class ReadDefGf(Application):
         elev = -1000.0 * depth
         coords = [lon, lat, elev]
 
-        lonR = numpy.zeros(numSites, dtype=numpy.float64)
-        latR = numpy.zeros(numSites, dtype=numpy.float64)
-        elevR = numpy.zeros(numSites, dtype=numpy.float64)
-        zRespE = numpy.zeros(numSites, dtype=numpy.float64)
-        zRespN = numpy.zeros(numSites, dtype=numpy.float64)
+        lonR = np.zeros(numSites, dtype=np.float64)
+        latR = np.zeros(numSites, dtype=np.float64)
+        elevR = np.zeros(numSites, dtype=np.float64)
+        zRespE = np.zeros(numSites, dtype=np.float64)
+        zRespN = np.zeros(numSites, dtype=np.float64)
 
         # Loop over lines in file.
         for lineNum in range(1, len(lines)):
@@ -341,8 +333,8 @@ class ReadDefGf(Application):
         i.close()
 
         coordInds = self._matchCoords(lonR, latr, self.upResponseTree)
-        zRespEOut = numpy.zeros(self.numUpResponses, dtype=numpy.float64)
-        zRespNOut = numpy.zeros(self.numUpResponses, dtype=numpy.float64)
+        zRespEOut = np.zeros(self.numUpResponses, dtype=np.float64)
+        zRespNOut = np.zeros(self.numUpResponses, dtype=np.float64)
         zRespEOut[coordInds] = zRespE
         zRespNOut[coordInds] = zRespN
       
@@ -353,7 +345,7 @@ class ReadDefGf(Application):
             "POINTS %d double\n" % self.numUpResponses
 
         o.write(vtkHead)
-        numpy.savetxt(o, self.upResponseCoords)
+        np.savetxt(o, self.upResponseCoords)
 
         responseNameE = self.vtkResponsePrefix + "z_response_e"
         responseNameN = self.vtkResponsePrefix + "z_response_n"
@@ -361,11 +353,11 @@ class ReadDefGf(Application):
         vtkHead2a = "SCALARS %s float 1\nLOOKUP_TABLE default\n" % responseNameE
         o.write(vtkHead2)
         o.write(vtkHead2a)
-        numpy.savetxt(o, zRespEOut)
+        np.savetxt(o, zRespEOut)
 
         vtkHead3 = "SCALARS %s float 1\nLOOKUP_TABLE default\n" % responseNameN
         o.write(vtkHead3)
-        numpy.savetxt(o, zRespNOut)
+        np.savetxt(o, zRespNOut)
 
         o.close()
         
@@ -410,15 +402,15 @@ class ReadDefGf(Application):
         elev = -1000.0 * depth
         coords = [lon, lat, elev]
 
-        lonR = numpy.zeros(numSites, dtype=numpy.float64)
-        latR = numpy.zeros(numSites, dtype=numpy.float64)
-        elevR = numpy.zeros(numSites, dtype=numpy.float64)
-        xRespE = numpy.zeros(numSites, dtype=numpy.float64)
-        yRespE = numpy.zeros(numSites, dtype=numpy.float64)
-        zRespE = numpy.zeros(numSites, dtype=numpy.float64)
-        xRespN = numpy.zeros(numSites, dtype=numpy.float64)
-        yRespN = numpy.zeros(numSites, dtype=numpy.float64)
-        zRespN = numpy.zeros(numSites, dtype=numpy.float64)
+        lonR = np.zeros(numSites, dtype=np.float64)
+        latR = np.zeros(numSites, dtype=np.float64)
+        elevR = np.zeros(numSites, dtype=np.float64)
+        xRespE = np.zeros(numSites, dtype=np.float64)
+        yRespE = np.zeros(numSites, dtype=np.float64)
+        zRespE = np.zeros(numSites, dtype=np.float64)
+        xRespN = np.zeros(numSites, dtype=np.float64)
+        yRespN = np.zeros(numSites, dtype=np.float64)
+        zRespN = np.zeros(numSites, dtype=np.float64)
 
         # Loop over lines in file.
 
@@ -433,12 +425,12 @@ class ReadDefGf(Application):
 
         i.close()
         coordInds = self._matchCoords(lonR, latR, refCoordTree)
-        xRespEOut = numpy.zeros(numResponses, dtype=numpy.float64)
-        yRespEOut = numpy.zeros(numResponses, dtype=numpy.float64)
-        zRespEOut = numpy.zeros(numResponses, dtype=numpy.float64)
-        xRespNOut = numpy.zeros(numResponses, dtype=numpy.float64)
-        yRespNOut = numpy.zeros(numResponses, dtype=numpy.float64)
-        zRespNOut = numpy.zeros(numResponses, dtype=numpy.float64)
+        xRespEOut = np.zeros(numResponses, dtype=np.float64)
+        yRespEOut = np.zeros(numResponses, dtype=np.float64)
+        zRespEOut = np.zeros(numResponses, dtype=np.float64)
+        xRespNOut = np.zeros(numResponses, dtype=np.float64)
+        yRespNOut = np.zeros(numResponses, dtype=np.float64)
+        zRespNOut = np.zeros(numResponses, dtype=np.float64)
         xRespEOut[coordInds] = xRespE
         yRespEOut[coordInds] = yRespE
         zRespEOut[coordInds] = zRespE
@@ -453,24 +445,24 @@ class ReadDefGf(Application):
             "POINTS %d double\n" % numResponses
 
         o.write(vtkHead)
-        numpy.savetxt(o, outCoords)
+        np.savetxt(o, outCoords)
 
         vtkHead2 = "POINT_DATA %d\n" % numResponses
         vtkHead2a = "VECTORS %s double\n" % responseNameE
         o.write(vtkHead2)
         o.write(vtkHead2a)
-        responseE = numpy.column_stack((xRespEOut, yRespEOut, zRespEOut))
-        numpy.savetxt(o, responseE)
+        responseE = np.column_stack((xRespEOut, yRespEOut, zRespEOut))
+        np.savetxt(o, responseE)
 
         vtkHead3 = "VECTORS %s double\n" % responseNameN
         o.write(vtkHead3)
-        responseN = numpy.column_stack((xRespNOut, yRespNOut, zRespNOut))
-        numpy.savetxt(o, responseN)
+        responseN = np.column_stack((xRespNOut, yRespNOut, zRespNOut))
+        np.savetxt(o, responseN)
 
         vtkHead4 = "VECTORS %s double\n" % responseNameT
         o.write(vtkHead4)
         totResponse = responseE + responseN
-        numpy.savetxt(o, totResponse)
+        np.savetxt(o, totResponse)
 
         o.close()
 
@@ -495,8 +487,8 @@ class ReadDefGf(Application):
             impulseGeogCoords.append(gpsCoords)
 
         if (self.numGpsFiles != 0):
-            impulseGeogArray = numpy.array(impulseGeogCoords)
-            self.faultCoords = numpy.zeros((self.numImpulses, 3), dtype=numpy.float64)
+            impulseGeogArray = np.array(impulseGeogCoords)
+            self.faultCoords = np.zeros((self.numImpulses, 3), dtype=np.float64)
             lon = impulseGeogArray[:,0]
             lat = impulseGeogArray[:,1]
             elev = impulseGeogArray[:,2]
@@ -512,8 +504,8 @@ class ReadDefGf(Application):
             impulseGeogCoords2.append(insarCoords)
 
         if (self.numGpsFiles == 0 and self.numInsarFiles != 0):
-            impulseGeogArray = numpy.array(impulseGeogCoords2)
-            self.faultCoords = numpy.zeros((self.numImpulses, 3), dtype=numpy.float64)
+            impulseGeogArray = np.array(impulseGeogCoords2)
+            self.faultCoords = np.zeros((self.numImpulses, 3), dtype=np.float64)
             lon = impulseGeogArray[:,0]
             lat = impulseGeogArray[:,1]
             elev = impulseGeogArray[:,2]
@@ -530,8 +522,8 @@ class ReadDefGf(Application):
                 impulseGeogCoords3.append(upCoords)
 
             if (self.numGpsFiles == 0):
-                impulseGeogArray = numpy.array(impulseGeogCoords3)
-                self.faultCoords = numpy.zeros((self.numImpulses, 3), dtype=numpy.float64)
+                impulseGeogArray = np.array(impulseGeogCoords3)
+                self.faultCoords = np.zeros((self.numImpulses, 3), dtype=np.float64)
                 lon = impulseGeogArray[:,0]
                 lat = impulseGeogArray[:,1]
                 elev = impulseGeogArray[:,2]
@@ -553,7 +545,7 @@ class ReadDefGf(Application):
             "ASCII\n" + \
             "DATASET UNSTRUCTURED_GRID\n"
         headerTotal = headerTop + "POINTS " + repr(self.numImpulses) + " double\n"
-        slip = numpy.zeros(self.numImpulses, dtype=numpy.float64)
+        slip = np.zeros(self.numImpulses, dtype=np.float64)
         slipHead = "POINT_DATA %d\n" % self.numImpulses
         slipHeadTot = slipHead + "SCALARS fault_slip double 1\n" + "LOOKUP_TABLE default\n"
 
@@ -561,10 +553,10 @@ class ReadDefGf(Application):
         numCells = (self.numAsNodes - 1) * (self.numDdNodes - 1)
         numCellEntries = 5 * numCells
         headConnect = "CELLS %d %d\n" % (numCells, numCellEntries)
-        connect = numpy.zeros((numCells, 5), dtype=numpy.int32)
+        connect = np.zeros((numCells, 5), dtype=np.int32)
         connect[:,0] = 4
         headCellType = "CELL_TYPES %d\n" % numCells
-        cellType = 9 * numpy.ones(numCells, dtype=numpy.int32)
+        cellType = 9 * np.ones(numCells, dtype=np.int32)
         intFmt = "%d"
 
         cellNum = 0
@@ -585,7 +577,7 @@ class ReadDefGf(Application):
         headSlip = "POINT_DATA " + repr(self.numImpulses) + "\n" + \
             "SCALARS fault_slip double 1\n" + \
             "LOOKUP_TABLE default\n"
-        slip = numpy.zeros(self.numImpulses, dtype=numpy.float64)
+        slip = np.zeros(self.numImpulses, dtype=np.float64)
 
         printIncr = 10
 
@@ -600,13 +592,13 @@ class ReadDefGf(Application):
             o = open(fileName, 'w')
 
             o.write(headerTotal)
-            numpy.savetxt(o, self.faultCoords)
+            np.savetxt(o, self.faultCoords)
             o.write(headConnect)
-            numpy.savetxt(o, connect, fmt=intFmt)
+            np.savetxt(o, connect, fmt=intFmt)
             o.write(headCellType)
-            numpy.savetxt(o,cellType, fmt=intFmt)
+            np.savetxt(o,cellType, fmt=intFmt)
             o.write(headSlip)
-            numpy.savetxt(o, slip)
+            np.savetxt(o, slip)
             o.close()
 
         return

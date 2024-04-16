@@ -4,7 +4,7 @@ This is a script to read two sets of DEFNODE Green's functions, computes
 the differences and outputs the results in a VTK file.
 """
 
-import pdb
+# import pdb
 import os
 import glob
 import platform
@@ -14,13 +14,11 @@ import matplotlib.pyplot as plt
 PYTHON_MAJOR_VERSION = int(platform.python_version_tuple()[0])
 
 if (PYTHON_MAJOR_VERSION == 2):
-    from pathlib2 import Path
     from pyre.applications.Script import Script as Application
     import pyre.units.unitparser
     from pyre.units.length import km
     from pyre.units.length import mm
 else:
-    from pathlib import Path
     from pythia.pyre.applications.Script import Script as Application
     import pythia.pyre.units.unitparser
     from pythia.pyre.units.length import km
@@ -136,7 +134,6 @@ class CompareDefGf(Application):
         """
         Application._configure(self)
 
-        # pathName = os.path.dirname(self.vtkOutputDir)
         self.outputDir = self._checkDir(self.vtkOutputDir)
 
         return

@@ -14,9 +14,15 @@ import scipy.interpolate
 import scipy.spatial
 import scipy.spatial.distance
 import sys
-import os
+import platform
 
-from pythia.pyre.applications.Script import Script as Application
+# For now, if we are running Python 2, we will also assume PyLith 2.
+PYTHON_MAJOR_VERSION = int(platform.python_version_tuple()[0])
+
+if (PYTHON_MAJOR_VERSION == 2):
+    from pyre.applications.Script import Script as Application
+else:
+    from pythia.pyre.applications.Script import Script as Application
 
 class CreateCellSize3D(Application):
     """
@@ -58,7 +64,10 @@ class CreateCellSize3D(Application):
     ## @li \b rbf_type Type of RBF to use for RBF SF.
     ## @li \b print_incr Increment for which to print current cell number.
 
-    import pythia.pyre.inventory as inventory
+    if (PYTHON_MAJOR_VERSION == 2):
+        import pyre.inventory as inventory
+    else:
+        import pythia.pyre.inventory as inventory
 
     exodusInputFile = inventory.str("exodus_input_file", default="mesh.exo")
     exodusInputFile.meta['tip'] = "Exodus II input file."
@@ -566,7 +575,7 @@ class CreateCellSize3D(Application):
         Function to compute gradient sizing function for triangular cells.
         """
 
-        print "Calculating gradient sizing function:"
+        print("Calculating gradient sizing function:")
         sys.stdout.flush()
 
         # Read HDF5 file.
@@ -849,12 +858,12 @@ class CreateCellSize3D(Application):
         sizeDiff = sizeMax - sizeMin
 
         # Compute RBF function.
-        print "  Setting up RBF interpolation:"
+        print("  Setting up RBF interpolation:")
         rbfFunc = scipy.interpolate.Rbf(xPoints, yPoints, zPoints, sizePoints, function=self.rbfType,
                                         smooth=self.rbfSmoothing)
 
         print("  Computing RBF solution at mesh vertices:")
-        vertsPerSlice = self.numMeshVerts/self.rbfNumMeshSlices
+        vertsPerSlice = self.numMeshVerts//self.rbfNumMeshSlices
         sizeFunc = np.zeros(self.numMeshVerts, dtype=np.float64)
         for sliceNum in range(self.rbfNumMeshSlices):
             print("    Working on slice # %d:" % sliceNum)
@@ -902,8 +911,8 @@ class CreateCellSize3D(Application):
         Function to add size function info to Exodus II file.
         """
 
-        print ""
-        print "Writing size function information:"
+        print("")
+        print("Writing size function information:")
         sys.stdout.flush()
 
         meanTotF = np.mean(self.totSizeFunc)
