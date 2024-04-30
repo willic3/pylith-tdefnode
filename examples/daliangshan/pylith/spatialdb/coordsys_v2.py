@@ -16,8 +16,8 @@ def cs_geo():
     return cs
 
 
-# Coordinate system used in Tibet finite-element meshes
-def cs_meshTibet():
+# Coordinate system used in Daliangshan finite-element meshes
+def cs_meshDaliangshan():
     cs = CSGeoProj()
     cs.inventory.datumHoriz = "WGS84"
     cs.inventory.datumVert = "mean sea level"

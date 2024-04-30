@@ -2,27 +2,46 @@
 
 """
 Python script to generate spatial database for PyLith based on
-velocity model from Rui. Outside of this region, results are
+two velocity models from Rui. Outside of this region, results are
 merged into PREM.
 """
 
-import numpy
+import numpy as np
+import pdb
 import scipy.interpolate
-from pyproj import Proj
-from pyproj import transform
-from spatialdata.geocoords.CSGeoProj import CSGeoProj
-from spatialdata.geocoords.Converter import convert
-from spatialdata.spatialdb.SimpleGridAscii import SimpleGridAscii
-from coordsys import cs_geo
-from coordsys import cs_meshTibet
+from pyproj import Transformer
+import meshio
+import platform
+# For now, if we are running Python 2, we will also assume PyLith 2.
+PYTHON_MAJOR_VERSION = int(platform.python_version_tuple()[0])
+
+if (PYTHON_MAJOR_VERSION == 2):
+    from spatialdata.geocoords.CSGeoProj import CSGeoProj
+    from spatialdata.geocoords.Converter import convert
+    from spatialdata.spatialdb.SimpleGridAscii import SimpleGridAscii
+    from coordsys_v2 import cs_geo
+    from coordsys_v2 import cs_meshDaliangshan
+    outSpatialDb = 'merged_velmodel_v2.spatialdb'
+else:
+    from spatialdata.geocoords.CSGeo import CSGeo
+    from spatialdata.geocoords.CSGeoLocal import CSGeoLocal
+    from spatialdata.geocoords.Converter import convert
+    from spatialdata.spatialdb.SimpleGridAscii import createWriter
+    from coordsys_v3 import cs_geo
+    from coordsys_v3 import cs_meshDaliangshan
+    outSpatialDb = 'merged_velmodel_v3.spatialdb'
+
+# pdb.set_trace()
+
 
 # Filenames.
-velModelFile = 'liu_etal_2021_SRL_0.5x0.5_wrt_surface_VpVs.txt'
+velModelFile1 = 'liu_etal_2021_SRL_0.5x0.5_wrt_surface_VpVs.txt'
+velModelFile2 = 'vps_3d_tomodd_mod_wujinaping.dat'
 premFile = 'prem_1s.csv'
-outSpatialDb = 'merged_velmodel.spatialdb'
-outOrigVTK = 'original_velmodel.vtk'
-outMergedVTK = 'merged_velmodel.vtk'
+outOrig1VTK = 'original_velmodel_medres.vtk'
+outOrig2VTK = 'original_velmodel_highres.vtk'
 outPremVTK = 'prem_velmodel.vtk'
+outMergedVTK = 'merged_velmodel.vtk'
 
 # Mesh boundaries.
 meshLonMin = 90.0
@@ -30,18 +49,18 @@ meshLonMax = 114.0
 meshLatMin = 16.0
 meshLatMax = 39.0
 meshElevMin = -402000.0
-meshElevMax = 2000.0
+meshElevAdd = [2000.0, 4000.0, 6000.0]
 
 # Velocity model dimensions.
-numVX = 23
-numVY = 27
-# Note that this includes an extra surface layer above z=0.
-numVZ = 13
-numV = numVX*numVY*numVZ
+num1VX = 23
+num1VY = 27
+# Note that this includes 3 extra surface layers above z=0.
+num1VZ = 15
+num1V = num1VX*num1VY*num1VZ
 
 # Amount to extend each direction.
-numAddHoriz = 8
-numAddZMin = 6
+numAddHoriz = 10
+numAddZMin = 8
 
 # Interpolation distance in each direction.
 numInterpHoriz = 3
@@ -50,17 +69,82 @@ numInterpVert = 3
 # Projections.
 WGS84 = "+proj=lonlat +ellps=WGS84 +datum=WGS84 +towgs84=0.0,0.0,0.0"
 TM = "+proj=tmerc +lon_0=102.5 +lat_0=28.0 +ellps=WGS84 +datum=WGS84 +k=0.9996 +towgs84=0.0,0.0,0.0"
-projWGS84 = Proj(WGS84)
-projTM = Proj(TM)
+transWGS84ToTM = Transformer.from_crs(WGS84, TM, always_xy=True)
 
 # Coordinate systems.
 csGeo = cs_geo()
 
-# Function for Brocher (2005) density/Vp relation.
 #-------------------------------------------------------------------------------
+def getVel2Line(lines, startInd, numVals):
+    """
+    Get line from high resolution velocity model file.
+    """
+    totVals = 0
+    nextInd = startInd
+    vals = []
+    while (totVals < numVals):
+        line = lines[nextInd].split()
+        nextInd += 1
+        lineVals = [float(i) for i in line]
+        vals += lineVals
+        totVals = len(vals)
+
+    return (vals, nextInd)
+
+
+def readVelMod2(inFile):
+    """
+    Read higer resolution velocity model.
+    """
+    f = open(inFile, 'r')
+    lines = f.readlines()
+    line0Split = lines[0].split()
+    numLat = int(line0Split[0])
+    numLon = int(line0Split[1])
+    numDepth = int(line0Split[2])
+    numPoints = numLat*numLon*numDepth
+
+    (lats, nextInd) = getVel2Line(lines, 1, numLat)
+    (lons, nextInd) = getVel2Line(lines, nextInd, numLon)
+    (depths, nextInd) = getVel2Line(lines, nextInd, numDepth)
+    depths.reverse()
+    lats = np.array(lats)
+    lons = np.array(lons)
+    depths = -1000.0*np.array(depths)
+
+    coordsGeog = np.zeros((numPoints, 3), dtype=np.float64)
+
+    vp = np.zeros(numPoints, dtype=np.float64)
+    vs = np.zeros(numPoints, dtype=np.float64)
+    for i in range(numLat):
+        for j in range(numLon):
+            (vpLine, nextInd) = getVel2Line(lines, nextInd, numDepth)
+            vpLine.reverse()
+            ind = numDepth*(i*numLon + j)
+            vp[ind:ind+numDepth] = vpLine
+            coordsGeog[ind:ind+numDepth,0] = lons[j]
+            coordsGeog[ind:ind+numDepth,1] = lats[i]
+            coordsGeog[ind:ind+numDepth,2] = depths
+
+    for i in range(numLat):
+        for j in range(numLon):
+            (vsLine, nextInd) = getVel2Line(lines, nextInd, numDepth)
+            vsLine.reverse()
+            ind = numDepth*(i*numLon + j)
+            vs[ind:ind+numDepth] = vsLine
+
+    # Sort by lon, lat, depth.
+    sortInds = np.lexsort((coordsGeog[:,0], coordsGeog[:,1], coordsGeog[:,2]))
+    coordsGeog = coordsGeog[sortInds,:]
+    vp = vp[sortInds]
+    vs = vs[sortInds]
+            
+    return (coordsGeog, vp, vs, lons, lats, depths)
+            
+    
 def brocherDensity(vp):
     """
-    Function to compute density from Vp.
+    Function for Brocher (2005) density/Vp relation.
     """
     c1 = 1.6612
     c2 = -0.4721
@@ -80,11 +164,14 @@ def createLogRange(v1, v2, numAdd, refVal):
     v2:  Furthest from mesh center.
     """
     dv = v2 - v1
-    vrange = numpy.geomspace(refVal, numpy.abs(dv) + refVal, num=numAdd)
+    vrange = np.geomspace(refVal, np.abs(dv) + refVal, num=numAdd)
+    # vrange = np.geomspace(v1, v2, num=numAdd)
     if (dv < 0.0):
-        vLRange = numpy.flipud(v1 + refVal - vrange)
+        vLRange = np.flipud(v1 + refVal - vrange)
+        # vLRange = np.flipud(vrange)
     else:
         vLRange = v1 - refVal + vrange
+        # vLRange = vrange
 
     return vLRange
 
@@ -118,8 +205,8 @@ def writeVtk(file, coords, nx, ny, nz, vp, vs, density, meshPart):
                 cell = [numVertsPerCell, l1, l2, l3, l4, l5, l6, l7, l8]
                 connect.append(cell)
 
-    connectArr = numpy.array(connect, dtype=numpy.int64)
-    cellTypes = 12*numpy.ones(numCells, dtype=numpy.int64)
+    connectArr = np.array(connect, dtype=np.int64)
+    cellTypes = 12*np.ones(numCells, dtype=np.int64)
 
     # VTK header.
     vtkHead = "# vtk DataFile Version 2.0\n" + \
@@ -131,29 +218,29 @@ def writeVtk(file, coords, nx, ny, nz, vp, vs, density, meshPart):
     # Write coordinates.
     v = open(file, 'w')
     v.write(vtkHead)
-    numpy.savetxt(v, coords, fmt="%15.11e", delimiter='\t')
+    np.savetxt(v, coords, fmt="%15.11e", delimiter='\t')
 
     # Write connectivity.
     numCellEntries = numCells*9
     v.write("CELLS %d %d\n" % (numCells, numCellEntries))
-    numpy.savetxt(v, connectArr, fmt="%d")
+    np.savetxt(v, connectArr, fmt="%d")
     v.write("CELL_TYPES %d\n" % numCells)
-    numpy.savetxt(v, cellTypes, fmt="%d")
+    np.savetxt(v, cellTypes, fmt="%d")
 
     # Write data fields.
     v.write("POINT_DATA %d\n" % numPoints)
     v.write("SCALARS vp double 1\n")
     v.write("LOOKUP_TABLE default\n")
-    numpy.savetxt(v, vp)
+    np.savetxt(v, vp)
     v.write("SCALARS vs double 1\n")
     v.write("LOOKUP_TABLE default\n")
-    numpy.savetxt(v, vs)
+    np.savetxt(v, vs)
     v.write("SCALARS density double 1\n")
     v.write("LOOKUP_TABLE default\n")
-    numpy.savetxt(v, density)
+    np.savetxt(v, density)
     v.write("SCALARS mesh_part double 1\n")
     v.write("LOOKUP_TABLE default\n")
-    numpy.savetxt(v, meshPart)
+    np.savetxt(v, meshPart)
 
     v.close()
 
@@ -161,40 +248,80 @@ def writeVtk(file, coords, nx, ny, nz, vp, vs, density, meshPart):
 
 
 #-------------------------------------------------------------------------------
-# Read velocity model files.
+# Read high resolution velocity model file.
+print("Reading high resolution velocity model:")
+(vCoordsGeog2, vVp2, vVs2, vLons2, vLats2, vElevs2) = readVelMod2(velModelFile2)
+vDensity2 = brocherDensity(vVp2)
+(xCart2, yCart2, zCart2) = transWGS84ToTM.transform(vCoordsGeog2[:,0], vCoordsGeog2[:,1], vCoordsGeog2[:,2])
+coordsCart2 = np.column_stack((xCart2, yCart2, zCart2))
+num2VX = vLons2.shape[0]
+num2VY = vLats2.shape[0]
+num2VZ = vElevs2.shape[0]
+
 print("Reading original velocity model:")
-vDat = numpy.loadtxt(velModelFile, dtype=numpy.float64)
+vDat = np.loadtxt(velModelFile1, dtype=np.float64)
 vDat[:,2] *= -1000.0
 
-# Create fake layer above z=0.
-vDatExt = numpy.vstack((vDat[:numVX*numVY,:], vDat))
-vDatExt[:numVX*numVY,2] = meshElevMax
-
+# Create fake layers above z=0.
+vDatTop = vDat[:num1VX*num1VY,:]
+vDatExt = vDat.copy()
+for layer in range(3):
+    vDatExt = np.vstack((vDatTop[:num1VX*num1VY,:], vDatExt))
+    vDatExt[:num1VX*num1VY, 2] = meshElevAdd[layer]
+    
 # Reorder array so z goes from min to max.
-vDatFlipped = numpy.zeros_like(vDatExt)
-sliceSize = numVX*numVY
-for sliceNum in range(numVZ):
-    indOrig = (numVZ - sliceNum - 1)*sliceSize
+vDatFlipped = np.zeros_like(vDatExt)
+sliceSize = num1VX*num1VY
+for sliceNum in range(num1VZ):
+    indOrig = (num1VZ - sliceNum - 1)*sliceSize
     indFlipped = sliceNum*sliceSize
     vDatFlipped[indFlipped:indFlipped+sliceSize] = vDatExt[indOrig:indOrig+sliceSize]
 
-vLons = vDatFlipped[0:numVX,0]
-vLats = vDatFlipped[0:numVX*numVY:numVX,1]
-vElevs = vDatFlipped[0::numVX*numVY,2]
-vCoordsGeog = vDatFlipped[:,0:3]
-vVp = vDatFlipped[:,3]
-vVs = vDatFlipped[:,4]
-vDensity = brocherDensity(vVp)
-westLonsAdd = createLogRange(vLons[0], meshLonMin, numAddHoriz + 1, 10.0)
-eastLonsAdd = createLogRange(vLons[-1], meshLonMax, numAddHoriz + 1, 10.0)
-southLatsAdd = createLogRange(vLats[0], meshLatMin, numAddHoriz + 1, 10.0)
-northLatsAdd = createLogRange(vLats[-1], meshLatMax, numAddHoriz + 1, 10.0)
-bottomElevsAdd = createLogRange(vElevs[0], meshElevMin, numAddZMin + 1, 10000.0)
+vLons1 = vDatFlipped[0:num1VX,0]
+vLats1 = vDatFlipped[0:num1VX*num1VY:num1VX,1]
+vElevs1 = vDatFlipped[0::num1VX*num1VY,2]
+vCoordsGeog1 = vDatFlipped[:,0:3]
+vVp1 = vDatFlipped[:,3]
+vVs1 = vDatFlipped[:,4]
+vDensity1 = brocherDensity(vVp1)
+
+(xCart1, yCart1, zCart1) = transWGS84ToTM.transform(vCoordsGeog1[:,0], vCoordsGeog1[:,1], vCoordsGeog1[:,2])
+coordsCart1 = np.column_stack((xCart1, yCart1, zCart1))
+
+# Get indices of old velocity model to use for interpolation.
+print("Getting interpolation indices:")
+xInner1 = np.logical_and(vCoordsGeog1[:,0] >= vLons2[0], vCoordsGeog1[:,0] <= vLons2[-1])
+yInner1 = np.logical_and(vCoordsGeog1[:,1] >= vLats2[0], vCoordsGeog1[:,1] <= vLats2[-1])
+zInner1 = np.logical_and(vCoordsGeog1[:,2] >= vElevs2[0], vCoordsGeog1[:,2] <= vElevs2[-1])
+indsInside1 = xInner1*yInner1*zInner1
+indsOutside1 = np.logical_not(indsInside1)
+coordsUse1 = coordsCart1[indsOutside1,:]
+vVpUse1 = vVp1[indsOutside1]
+vVsUse1 = vVs1[indsOutside1]
+vDensityUse1 = vDensity1[indsOutside1]
+
+# Get new mesh ranges.
+print("Creating new mesh:")
+dLon = vLons2[1] - vLons2[0]
+dLat = vLats2[1] - vLats2[0]
+dElev = vElevs2[1] - vElevs2[0]
+numLonsInner = int((vLons1[-1] - vLons1[0])/dLon) + 1
+lonsInner = np.linspace(vLons1[0], vLons1[-1], num=numLonsInner, dtype=np.float64)
+numLatsInner = int((vLats1[-1] - vLats1[0])/dLat) + 1
+latsInner = np.linspace(vLats1[0], vLats1[-1], num=numLatsInner, dtype=np.float64)
+numElevsInner = int((vElevs1[-1] - vElevs1[0])/dElev) + 1
+elevsInner = np.linspace(vElevs1[0], vElevs1[-1], num=numElevsInner, dtype=np.float64)
+
+westLonsAdd = createLogRange(vLons1[0], meshLonMin, numAddHoriz + 1, 10.0)
+eastLonsAdd = createLogRange(vLons1[-1], meshLonMax, numAddHoriz + 1, 10.0)
+southLatsAdd = createLogRange(vLats1[0], meshLatMin, numAddHoriz + 1, 10.0)
+northLatsAdd = createLogRange(vLats1[-1], meshLatMax, numAddHoriz + 1, 10.0)
+bottomElevsAdd = createLogRange(vElevs1[0], meshElevMin, numAddZMin + 1, 10000.0)
 
 # New ranges.
-lonsNew = numpy.concatenate((westLonsAdd, vLons[1:-1], eastLonsAdd))
-latsNew = numpy.concatenate((southLatsAdd, vLats[1:-1], northLatsAdd))
-elevsNew = numpy.concatenate((bottomElevsAdd, vElevs[1:]))
+lonsNew = np.concatenate((westLonsAdd, lonsInner[1:-1], eastLonsAdd))
+latsNew = np.concatenate((southLatsAdd, latsInner[1:-1], northLatsAdd))
+elevsNew = np.concatenate((bottomElevsAdd, elevsInner[1:]))
 
 # Extended dimensions.
 numVXExt = lonsNew.shape[0]
@@ -203,29 +330,31 @@ numVZExt = elevsNew.shape[0]
 numExt = numVXExt*numVYExt*numVZExt
 
 # New grid.
-(zz, yy, xx) = numpy.meshgrid(elevsNew, latsNew, lonsNew, indexing='ij')
-coordsNewGeog = numpy.column_stack((xx.flatten(), yy.flatten(), zz.flatten()))
-(xNewCart, yNewCart, zNewCart) = transform(projWGS84, projTM, xx.flatten(), yy.flatten(), zz.flatten())
-coordsNewCart = numpy.column_stack((xNewCart, yNewCart, zNewCart))
+(zz, yy, xx) = np.meshgrid(elevsNew, latsNew, lonsNew, indexing='ij')
+coordsNewGeog = np.column_stack((xx.flatten(), yy.flatten(), zz.flatten()))
+(xNewCart, yNewCart, zNewCart) = transWGS84ToTM.transform(xx.flatten(), yy.flatten(), zz.flatten())
+coordsNewCart = np.column_stack((xNewCart, yNewCart, zNewCart))
 
 # PREM.
 print("Reading PREM velocity model:")
-pDat = numpy.loadtxt(premFile, delimiter=',', dtype=numpy.float64)
-numP = pDat.shape[0] + 1
-pElevs = numpy.zeros(numP, dtype=numpy.float64)
-pVp = numpy.zeros(numP, dtype=numpy.float64)
-pVs = numpy.zeros(numP, dtype=numpy.float64)
-pDensity = numpy.zeros(numP, dtype=numpy.float64)
-pElevs[1:] = -1000.0*pDat[:,1]
-pDensity[1:] = pDat[:,2]
-pVp[1:] = 0.5*(pDat[:,3] + pDat[:,4])
-pVs[1:] = 0.5*(pDat[:,5] + pDat[:,6])
+pDat = np.loadtxt(premFile, delimiter=',', dtype=np.float64)
+numP = pDat.shape[0] + 3
+pElevs = np.zeros(numP, dtype=np.float64)
+pVp = np.zeros(numP, dtype=np.float64)
+pVs = np.zeros(numP, dtype=np.float64)
+pDensity = np.zeros(numP, dtype=np.float64)
+pElevs[3:] = -1000.0*pDat[:,1]
+pDensity[3:] = pDat[:,2]
+pVp[3:] = 0.5*(pDat[:,3] + pDat[:,4])
+pVs[3:] = 0.5*(pDat[:,5] + pDat[:,6])
 
 # Correct near-surface for PREM.
-pElevs[0] = meshElevMax
-pDensity[0:5] = pDensity[5]
-pVp[0:5] = pVp[5]
-pVs[0:5] = pVs[5]
+pElevs[0] = meshElevAdd[-1]
+pElevs[1] = meshElevAdd[-2]
+pElevs[2] = meshElevAdd[-3]
+pDensity[0:7] = pDensity[7]
+pVp[0:7] = pVp[7]
+pVs[0:7] = pVs[7]
 
 # Create interpolation functions for PREM.
 pVpf = scipy.interpolate.interp1d(pElevs, pVp)
@@ -234,80 +363,66 @@ pDensityf = scipy.interpolate.interp1d(pElevs, pDensity)
 
 print("Computing logical arrays for interpolation:")
 # Define indices for original velocity model, PREM, and interpolated values.
-xOrig = numpy.logical_and(coordsNewGeog[:,0] >= vLons[0], coordsNewGeog[:,0] <= vLons[-1])
-yOrig = numpy.logical_and(coordsNewGeog[:,1] >= vLats[0], coordsNewGeog[:,1] <= vLats[-1])
-zOrig = coordsNewGeog[:,2] >= vElevs[0]
+xOrig = np.logical_and(coordsNewGeog[:,0] >= vLons1[0], coordsNewGeog[:,0] <= vLons1[-1])
+yOrig = np.logical_and(coordsNewGeog[:,1] >= vLats1[0], coordsNewGeog[:,1] <= vLats1[-1])
+zOrig = coordsNewGeog[:,2] >= vElevs1[0]
 indsOrig = xOrig*yOrig*zOrig
 coordsOrig = coordsNewCart[indsOrig,:]
 
 # Define indices for interpolated region.
 numOuterHoriz = numAddHoriz - numInterpHoriz
 numOuterVert = numAddZMin - numInterpVert
-xInner = numpy.logical_and(coordsNewGeog[:,0] >= lonsNew[numOuterHoriz], coordsNewGeog[:,0] <= lonsNew[-numOuterHoriz-1])
-yInner = numpy.logical_and(coordsNewGeog[:,1] >= latsNew[numOuterHoriz], coordsNewGeog[:,1] <= latsNew[-numOuterHoriz-1])
+xInner = np.logical_and(coordsNewGeog[:,0] >= lonsNew[numOuterHoriz], coordsNewGeog[:,0] <= lonsNew[-numOuterHoriz-1])
+yInner = np.logical_and(coordsNewGeog[:,1] >= latsNew[numOuterHoriz], coordsNewGeog[:,1] <= latsNew[-numOuterHoriz-1])
 zInner = coordsNewGeog[:,2] >= elevsNew[numOuterVert]
 indsInner = xInner*yInner*zInner
-indsInterp = numpy.logical_xor(indsOrig, indsInner)
+indsInterp = np.logical_xor(indsOrig, indsInner)
 coordsInterp = coordsNewCart[indsInterp,:]
 
 # Define indices of outer parts of velocity model.
-indsOuter = numpy.logical_xor(indsInner, numpy.ones_like(indsInner))
+indsOuter = np.logical_xor(indsInner, np.ones_like(indsInner))
 coordsOuter = coordsNewCart[indsOuter,:]
 vpOuter = pVpf(coordsOuter[:,2])
 vsOuter = pVsf(coordsOuter[:,2])
 densityOuter = pDensityf(coordsOuter[:,2])
 
-# Create RBF interpolation functions.
-refCoords = numpy.vstack((coordsOrig, coordsOuter))
-refVp = numpy.concatenate((vVp, vpOuter))
-refVs = numpy.concatenate((vVs, vsOuter))
-refDensity = numpy.concatenate((vDensity, densityOuter))
+# Create interpolation functions.
+refCoords = np.vstack((coordsCart2, coordsUse1, coordsOuter))
+refVp = np.concatenate((vVp2, vVpUse1, vpOuter))
+refVs = np.concatenate((vVs2, vVsUse1, vsOuter))
+refDensity = np.concatenate((vDensity2, vDensityUse1, densityOuter))
 
 print("Computing interpolation functions:")
-# rbfVp = scipy.interpolate.Rbf(refCoords[:,0], refCoords[:,1], refCoords[:,2], refVp, function='linear', smooth=0.1)
-# rbfVs = scipy.interpolate.Rbf(refCoords[:,0], refCoords[:,1], refCoords[:,2], refVs, function='linear', smooth=0.1)
-# rbfDensity = scipy.interpolate.Rbf(refCoords[:,0], refCoords[:,1], refCoords[:,2], refDensity, function='linear', smooth=0.1)
 interpVp = scipy.interpolate.LinearNDInterpolator(refCoords, refVp)
 interpVs = scipy.interpolate.LinearNDInterpolator(refCoords, refVs)
 interpDensity = scipy.interpolate.LinearNDInterpolator(refCoords, refDensity)
 
 # Compute interpolated values.
 print("Applying interpolation functions:")
-# vpInterp = rbfVp(coordsInterp[:,0], coordsInterp[:,1], coordsInterp[:,2])
-# vsInterp = rbfVs(coordsInterp[:,0], coordsInterp[:,1], coordsInterp[:,2])
-# densityInterp = rbfDensity(coordsInterp[:,0], coordsInterp[:,1], coordsInterp[:,2])
-vpInterp = interpVp(coordsInterp)
-vsInterp = interpVs(coordsInterp)
-densityInterp = interpDensity(coordsInterp)
-
-# Merged velocity model.
-vpMerged = numpy.zeros_like(coordsNewGeog[:,0])
-vsMerged = numpy.zeros_like(coordsNewGeog[:,0])
-densityMerged = numpy.zeros_like(coordsNewGeog[:,0])
-vpMerged[indsOrig] = vVp
-vsMerged[indsOrig] = vVs
-densityMerged[indsOrig] = vDensity
-vpMerged[indsOuter] = vpOuter
-vsMerged[indsOuter] = vsOuter
-densityMerged[indsOuter] = densityOuter
-vpMerged[indsInterp] = vpInterp
-vsMerged[indsInterp] = vsInterp
-densityMerged[indsInterp] = densityInterp
+print("Interpolating Vp:")
+vpInterp = interpVp(coordsNewCart)
+print("Interpolating Vs:")
+vsInterp = interpVs(coordsNewCart)
+print("Interpolating density:")
+densityInterp = interpDensity(coordsNewCart)
 
 # Write velocity model to spatialdb.
-print("Writing results:")
-writer = SimpleGridAscii()
-writer.inventory.filename = outSpatialDb
-writer._configure()
+print("Writing spatial database:")
+if (PYTHON_MAJOR_VERSION == 2):
+    writer = SimpleGridAscii()
+    writer.inventory.filename = outSpatialDb
+    writer._configure()
+else:
+    writer = createWriter(outSpatialDb)
 values = [{'name': "vp",
            'units': "km/s",
-           'data': vpMerged},
+           'data': vpInterp},
           {'name': "vs",
            'units': "km/s",
-           'data': vsMerged},
+           'data': vsInterp},
           {'name': "density",
            'units': "g/cm**3",
-           'data': densityMerged}]
+           'data': densityInterp}]
 writer.write({'points': coordsNewGeog,
               'x': lonsNew,
               'y': latsNew,
@@ -317,16 +432,18 @@ writer.write({'points': coordsNewGeog,
               'values': values})
 
 # Write VTK files of different velocity models.
-(xCart, yCart, zCart) = transform(projWGS84, projTM, vCoordsGeog[:,0], vCoordsGeog[:,1], vCoordsGeog[:,2])
-vCoordsCart = numpy.column_stack((xCart, yCart, zCart))
-meshPart = numpy.ones_like(vVp)
-writeVtk(outOrigVTK, vCoordsCart, numVX, numVY, numVZ, vVp, vVs, vDensity, meshPart)
+print("Writing VTK files:")
+meshPart = np.ones_like(vVp1)
+writeVtk(outOrig1VTK, coordsCart1, num1VX, num1VY, num1VZ, vVp1, vVs1, vDensity1, meshPart)
 
-meshPart = numpy.zeros_like(vpMerged)
+meshPart = np.ones_like(vVp2)
+writeVtk(outOrig2VTK, coordsCart2, num2VX, num2VY, num2VZ, vVp2, vVs2, vDensity2, meshPart)
+
+meshPart = np.zeros_like(vpInterp)
 meshPart[indsOrig] = 1.0
 meshPart[indsOuter] = 2.0
 meshPart[indsInterp] = 3.0
-writeVtk(outMergedVTK, coordsNewCart, numVXExt, numVYExt, numVZExt, vpMerged, vsMerged, densityMerged, meshPart)
+writeVtk(outMergedVTK, coordsNewCart, numVXExt, numVYExt, numVZExt, vpInterp, vsInterp, densityInterp, meshPart)
 
 vpPrem = pVpf(coordsNewCart[:,2])
 vsPrem = pVsf(coordsNewCart[:,2])
