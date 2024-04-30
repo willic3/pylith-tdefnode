@@ -11,6 +11,7 @@ import numpy as np
 import math
 from pyproj import Transformer
 from fortranformat import FortranRecordReader
+import platform
 
 # If we are running Python 2, we will also assume PyLith 2.
 PYTHON_MAJOR_VERSION = int(platform.python_version_tuple()[0])
@@ -352,14 +353,11 @@ class CreateTdefnodeQuads(Application):
         m.write(mergeCmd)
 
         # Export surfaces.
-        acisFilename = faultName + "_acis.sat"
         cubitFilename = faultName + "_cubit.cub"
         comment2 = self.comment + self.newLine + self.separator + \
           "# Export DEFNODE volumes.\n" + self.separator
         m.write(comment2)
-        exportAcis = "export Acis '" + acisFilename + "' surface all overwrite\n"
         exportCubit = "export Cubit '" + cubitFilename + "' surface all overwrite\n"
-        m.write(exportAcis)
         m.write(exportCubit)
         m.close()
     
@@ -393,7 +391,7 @@ class CreateTdefnodeQuads(Application):
             diff = coordsReshape[:,0,:] - coordsReshape[:,1,:]
             diffNorm = np.linalg.norm(diff, axis=1)
             diffVec = diff/diffNorm.reshape((numAsNodes, 1))
-            testTop = coordsReshape[:,topNode,:] + upExt * diffVec
+            testTop = coordsReshape[:,topNode,:] + upExt*diffVec
             coordsExt[1:-1,0,:] = testTop
             aboveSurf = np.any(testTop[:,2] >= 0.0)
             if (aboveSurf):
@@ -403,21 +401,21 @@ class CreateTdefnodeQuads(Application):
         diff = coordsReshape[:,-1,:] - coordsReshape[:,-2,:]
         diffNorm = np.linalg.norm(diff, axis=1)
         diffVec = diff/diffNorm.reshape((numAsNodes, 1))
-        bottom = coordsReshape[:,-1,:] + downExt * diffVec
+        bottom = coordsReshape[:,-1,:] + downExt*diffVec
         coordsExt[1:-1,-1,:] = bottom
 
         # Extend left.
         diff = coordsExt[1,:,:] - coordsExt[2,:,:]
         diffNorm = np.linalg.norm(diff, axis=1)
         diffVec = diff/diffNorm.reshape((numDdNodesExt, 1))
-        left = coordsExt[1,:,:] + asNegExt * diffVec
+        left = coordsExt[1,:,:] + asNegExt*diffVec
         coordsExt[0,:,:] = left
 
         # Extend right.
         diff = coordsExt[-2,:,:] - coordsExt[-3,:,:]
         diffNorm = np.linalg.norm(diff, axis=1)
         diffVec = diff/diffNorm.reshape((numDdNodesExt, 1))
-        right = coordsExt[-2,:,:] + asPosExt * diffVec
+        right = coordsExt[-2,:,:] + asPosExt*diffVec
         coordsExt[-1,:,:] = right
 
         return (coordsExt, numAsNodesExt, numDdNodesExt)
