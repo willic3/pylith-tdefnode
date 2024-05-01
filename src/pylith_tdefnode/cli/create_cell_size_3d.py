@@ -116,7 +116,7 @@ class CreateCellSize3D(Application):
     gradFunctionType.meta['tip'] = "Type of gradient sizing function to use."
 
     gradFunctionScaling = inventory.str("grad_function_scaling", default="log",
-                                        validator=pyre.inventory.choice(["linear", "log", "root2", "root3", "root8", "root16"]))
+                                        validator=inventory.choice(["linear", "log", "root2", "root3", "root8", "root16"]))
     gradFunctionScaling.meta['tip'] = "Type of gradient sizing function scaling."
 
     rbfConstNsNames = inventory.list("rbf_const_ns_names", default=["ns1", "ns2"])
@@ -863,11 +863,11 @@ class CreateCellSize3D(Application):
                                         smooth=self.rbfSmoothing)
 
         print("  Computing RBF solution at mesh vertices:")
-        vertsPerSlice = self.numMeshVerts//self.rbfNumMeshSlices
+        vertsPerSlice = self.numMeshVerts//(self.rbfNumMeshSlices - 1)
         sizeFunc = np.zeros(self.numMeshVerts, dtype=np.float64)
         for sliceNum in range(self.rbfNumMeshSlices):
             print("    Working on slice # %d:" % sliceNum)
-            startInd = sliceNum * vertsPerSlice
+            startInd = sliceNum*vertsPerSlice
             finishInd = min(startInd + vertsPerSlice, self.numMeshVerts)
             sizeFunc[startInd:finishInd] = rbfFunc(coordsX[startInd:finishInd],
                                                    coordsY[startInd:finishInd],

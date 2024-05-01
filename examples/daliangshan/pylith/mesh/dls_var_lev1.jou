@@ -1,0 +1,50 @@
+# ----------------------------------------------------------------------
+# Set units to SI.
+# ----------------------------------------------------------------------
+reset
+undo off
+set crash save off
+#{Units('si')}
+
+# ----------------------------------------------------------------------
+# Generate geometry
+# ----------------------------------------------------------------------
+import Cubit 'dls_geometry.cub'
+
+# ----------------------------------------------------------------------
+# Set meshing scheme and sizing.
+# ----------------------------------------------------------------------
+volume all scheme tetmesh
+${dxInner=2.0*km}
+${dxMid=4.0*km}
+${dxOuter=60.0*km}
+surface 70 69 72 71 68 size {dxOuter}
+surface 76 74 size {dxMid}
+surface 84 to 143 size {dxInner}
+curve 322 460 462 321 scheme bias
+
+# ----------------------------------------------------------------------
+# Create volume mesh
+# ----------------------------------------------------------------------
+mesh volume all
+
+# ----------------------------------------------------------------------
+# Do one round of smoothing.
+# ----------------------------------------------------------------------
+# Don't do smoothing for initial (level 1) mesh.
+# remesh tet quality condition no greater than 3 inflate 2
+# cleanup volume all
+# volume all smooth scheme condition number beta 2.0 cpu 5
+# set debug 91 on
+# smooth volume all
+
+# ----------------------------------------------------------------------
+# Create nodesets and material blocks.
+# ----------------------------------------------------------------------
+playback 'dls_bc.jou'
+
+# ----------------------------------------------------------------------
+# Export mesh.
+# ----------------------------------------------------------------------
+export mesh "dls_var_lev1.exo" dimension 3 overwrite
+

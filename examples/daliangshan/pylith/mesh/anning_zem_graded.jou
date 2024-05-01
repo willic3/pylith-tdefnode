@@ -1,0 +1,54 @@
+# ----------------------------------------------------------------------
+# Set units to SI.
+# ----------------------------------------------------------------------
+reset
+undo off
+set crash save off
+#{Units('si')}
+
+# ----------------------------------------------------------------------
+# Generate geometry
+# ----------------------------------------------------------------------
+import Cubit 'anning_zem_geometry.cub'
+
+# ----------------------------------------------------------------------
+# Set meshing scheme and sizing function.
+# ----------------------------------------------------------------------
+volume all scheme tetmesh
+import sizing function "anning_zem_var_lev1.exo" block 1 variable "cell_size" time 0.0
+
+volume all sizing function type exodus
+surface all sizing function type exodus
+curve all scheme stride
+
+# ----------------------------------------------------------------------
+# Create volume mesh
+# ----------------------------------------------------------------------
+mesh volume all
+
+# ----------------------------------------------------------------------
+# Smooth mesh.
+# ----------------------------------------------------------------------
+remesh tet quality condition no greater than 3.0 inflate 3
+remesh tet quality condition no greater than 2.0 inflate 3
+
+volume all smooth scheme condition number beta 2.0 cpu 5
+set debug 91 on
+smooth volume all
+volume all smooth scheme condition number beta 1.8 cpu 5
+smooth volume all
+volume all smooth scheme condition number beta 1.8 cpu 10
+smooth volume 74
+volume all smooth scheme condition number beta 1.8 cpu 5
+smooth volume all
+
+# ----------------------------------------------------------------------
+# Create nodesets and material blocks.
+# ----------------------------------------------------------------------
+playback 'anning_zem_bc.jou'
+
+# ----------------------------------------------------------------------
+# Export mesh.
+# ----------------------------------------------------------------------
+export mesh "anning_zem_mesh_graded.exo" dimension 3 overwrite
+
