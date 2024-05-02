@@ -64,6 +64,12 @@ webcut volume 73 with sheet body 1
 delete body 1
 
 # ----------------------------------------------------------------------
+# Remove small curves.
+# ----------------------------------------------------------------------
+${maxCurveSize=1.0*km}
+auto_clean volume all small_curves small_curve_size {maxCurveSize}
+
+# ----------------------------------------------------------------------
 # Imprint and merge all volumes.
 # ----------------------------------------------------------------------
 imprint all
@@ -73,4 +79,3 @@ merge all
 # Export volume.
 # ----------------------------------------------------------------------
 export Cubit 'anning_zem_geometry.cub' overwrite
-
