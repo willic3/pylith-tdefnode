@@ -54,7 +54,7 @@ group "fault" add node in surface 94 to 163
 group "fault_top" add node in curve 368 365 361 357 349 341 333 324 315 307 299 290 282 271
 group "fault_bot" add node in curve 258 255 252 249 246 243 240 237 234 231 228 225 222 221
 
-group "fault_south" add node in curve 270 274 277 280 218
+group "fault_south" add node in curve 218 280 277 274 270
 group "fault_north" add node in curve 369 267 264 261 260
 
 group "fault_edge" add node in fault_south

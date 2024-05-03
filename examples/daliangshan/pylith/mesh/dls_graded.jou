@@ -4,10 +4,7 @@
 reset
 undo off
 set crash save off
-#{Units('si')}
-set import mesh nodeset associativity on
-set export mesh nodeset associativity on
-set export mesh nodeset associativity complete on
+${Units('si')}
 
 # ----------------------------------------------------------------------
 # Generate geometry
@@ -33,10 +30,11 @@ mesh volume all
 # ----------------------------------------------------------------------
 # Smooth mesh.
 # ----------------------------------------------------------------------
-remesh tet quality condition no greater than 3.0 inflate 3
-remesh tet quality condition no greater than 2.0 inflate 3
-
-volume all smooth scheme condition number beta 2.0 cpu 5
+# The following consists of an iterative procedure of checking the mesh quality
+# using the Condition Number quality metric, and then trying various options
+# of remeshing and smoothing until the max condition number is close to 2
+# (or less).
+volume all smooth scheme condition number beta 1.9 cpu 5
 set debug 91 on
 smooth volume all
 
@@ -49,4 +47,3 @@ playback 'dls_bc.jou'
 # Export mesh.
 # ----------------------------------------------------------------------
 export mesh "dls_mesh_graded.exo" dimension 3 overwrite
-

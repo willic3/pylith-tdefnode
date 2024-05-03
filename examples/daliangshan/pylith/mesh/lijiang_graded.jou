@@ -5,9 +5,6 @@ reset
 undo off
 set crash save off
 ${Units('si')}
-set import mesh nodeset associativity on
-set export mesh nodeset associativity on
-set export mesh nodeset associativity complete on
 
 # ----------------------------------------------------------------------
 # Generate geometry
@@ -27,18 +24,23 @@ curve all scheme stride
 # ----------------------------------------------------------------------
 # Create volume mesh
 # ----------------------------------------------------------------------
-mesh volume all
+# Sometimes it works better to do the meshing one volume at a time.
+mesh volume 35
+mesh volume 33
+mesh volume 34
+# mesh volume all
 
 # ----------------------------------------------------------------------
 # Smooth mesh.
 # ----------------------------------------------------------------------
-remesh tet quality condition no greater than 3.0 inflate 3
-remesh tet quality condition no greater than 2.0 inflate 3
+# The following consists of an iterative procedure of checking the mesh quality
+# using the Condition Number quality metric, and then trying various options
+# of remeshing and smoothing until the max condition number is close to 2
+# (or less).
+# remesh tet quality condition no greater than 2.0 inflate 2 free
 
-volume all smooth scheme condition number beta 2.0 cpu 5
-set debug 91 on
-smooth volume all
 volume all smooth scheme condition number beta 1.9 cpu 5
+set debug 91 on
 smooth volume all
 
 # ----------------------------------------------------------------------
@@ -50,4 +52,6 @@ playback 'lijiang_bc.jou'
 # Export mesh.
 # ----------------------------------------------------------------------
 export mesh "lijiang_mesh_graded.exo" dimension 3 overwrite
+
+
 
