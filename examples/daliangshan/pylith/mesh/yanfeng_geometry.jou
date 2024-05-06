@@ -66,7 +66,7 @@ delete body 1
 # ----------------------------------------------------------------------
 # Remove small curves.
 # ----------------------------------------------------------------------
-${maxCurveSize=1.0*km}
+${maxCurveSize=0.6*km}
 auto_clean volume all small_curves small_curve_size {maxCurveSize}
 
 # ----------------------------------------------------------------------
@@ -79,4 +79,3 @@ merge all
 # Export volume.
 # ----------------------------------------------------------------------
 export Cubit 'yanfeng_geometry.cub' overwrite
-
