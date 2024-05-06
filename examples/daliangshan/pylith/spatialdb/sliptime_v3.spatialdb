@@ -1,0 +1,21 @@
+//
+// This spatial database specifies the slip initiation time.
+#SPATIAL.ascii 1
+SimpleDB {
+  num-values = 1
+  value-names = slip-time
+  value-units = s
+  num-locs = 1
+  data-dim = 0
+  space-dim = 3
+  cs-data = geographic {
+    crs-string = +proj=tmerc +datum=WGS84 +lon_0=102.5 +lat_0=28.0 +k=0.9996 +units=m
+    space-dim = 3
+  }
+}
+// Columns are
+// (1) x coordinate (m)
+// (2) y coordinate (m)
+// (3) z coordinate (m)
+// (4) slip-time (s)
+0.0  0.0  0.0    0.0
