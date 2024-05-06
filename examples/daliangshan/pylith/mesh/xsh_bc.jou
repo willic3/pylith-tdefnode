@@ -76,8 +76,8 @@ nodeset 103 name "fault_bot"
 # ----------------------------------------------------------------------
 # Create nodesets for inner box faces
 # ----------------------------------------------------------------------
-group "inner_top" add node in surface 75 55
-group "inner_bot" add node in surface 73 56
+group "inner_top" add node in surface 57 74
+group "inner_bot" add node in surface 76 54
 group "inner_east" add node in surface 29
 group "inner_west" add node in surface 31
 
@@ -92,4 +92,3 @@ nodeset 106 name "inner_east"
 
 nodeset 107 group inner_west
 nodeset 107 name "inner_west"
-

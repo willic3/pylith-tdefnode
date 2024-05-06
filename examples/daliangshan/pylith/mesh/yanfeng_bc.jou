@@ -51,11 +51,11 @@ nodeset 15 name "face_zneg"
 # ----------------------------------------------------------------------
 group "fault" add node in surface 90 to 155
 
-group "fault_top" add node in curve 273 278 282 286 290 294 298 302 306 310 314 318 322 326 330 334 338 342 346 350 354 357
-group "fault_bot" add node in curve 205 206 209 212 215 218 221 224 227 230 233 236 239 242 245 248 251 254 257 260 263 266
+group "fault_top" add node in curve 359 356 352 348 344 340 336 332 328 324 320 316 312 308 304 300 296 292 288 284 280 275
+group "fault_bot" add node in curve 268 265 262 259 256 253 250 247 244 241 238 235 232 229 226 223 220 217 214 211 208 207
 
-group "fault_south" add node in curve 358 269 268
-group "fault_north" add node in curve 272 276 202
+group "fault_south" add node in curve 270 271 360
+group "fault_north" add node in curve 204 278 274
 
 group "fault_edge" add node in fault_south
 group "fault_edge" add node in fault_bot
@@ -76,8 +76,8 @@ nodeset 103 name "fault_bot"
 # ----------------------------------------------------------------------
 # Create nodesets for inner box faces
 # ----------------------------------------------------------------------
-group "inner_top" add node in surface 79
-group "inner_bot" add node in surface 157 229
+group "inner_top" add node in surface 159 227
+group "inner_bot" add node in surface 156 228
 group "inner_east" add node in surface 80
 group "inner_west" add node in surface 158 226
 
@@ -92,4 +92,3 @@ nodeset 106 name "inner_east"
 
 nodeset 107 group inner_west
 nodeset 107 name "inner_west"
-
