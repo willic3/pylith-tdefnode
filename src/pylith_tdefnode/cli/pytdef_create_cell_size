@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-## @file create_cell_size_3d.py
+## @file pytdef_create_cell_size
 
 ## @brief Python application to create an Exodus sizing function based
 ## on three different functions (ellipsoidal, RBF interpolation, and
@@ -24,7 +24,7 @@ if (PYTHON_MAJOR_VERSION == 2):
 else:
     from pythia.pyre.applications.Script import Script as Application
 
-class CreateCellSize3D(Application):
+class PytdefCreateCellSize(Application):
     """
     Python application to create an Exodus sizing function based
     on three different functions (ellipsoidal, RBF interpolation, and
@@ -168,7 +168,7 @@ class CreateCellSize3D(Application):
 
     # PUBLIC METHODS /////////////////////////////////////////////////////
 
-    def __init__(self, name="create_cell_size_3d"):
+    def __init__(self, name="pytdef_create_cell_size"):
         Application.__init__(self, name)
 
         self.numSfTypes = 0
@@ -974,7 +974,7 @@ class CreateCellSize3D(Application):
 
 # ----------------------------------------------------------------------
 if __name__ == '__main__':
-    app = CreateCellSize3D()
+    app = PytdefCreateCellSize()
     app.run()
 
 # End of file

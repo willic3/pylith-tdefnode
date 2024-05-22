@@ -28,13 +28,13 @@ import numpy as np
 import scipy.spatial
 from scipy.stats import norm
 
-class CompareDefGf(Application):
+class PytdefCompareDefGf(Application):
     """
     This is a script to read Green's function info from DEFNODE/TDEFNODE
     and create VTK output.
     """
 
-    ## Python object for managing CompareDefGf facilities and properties.
+    ## Python object for managing PytdefCompareDefGf facilities and properties.
     ##
     ## \b Properties
     ## @li \b defnode_ref_vtk_dir Directory containing VTK files with reference Defnode GF.
@@ -94,7 +94,7 @@ class CompareDefGf(Application):
     
     # PUBLIC METHODS /////////////////////////////////////////////////////
 
-    def __init__(self, name="compare_def_gf"):
+    def __init__(self, name="pytdef_compare_def_gf"):
         Application.__init__(self, name)
         self.numImpulses = 0
         self.numResponses = 0
@@ -428,7 +428,7 @@ class CompareDefGf(Application):
   
 # ----------------------------------------------------------------------
 if __name__ == '__main__':
-    app = CompareDefGf()
+    app = PytdefCompareDefGf()
     app.run()
 
 # End of file

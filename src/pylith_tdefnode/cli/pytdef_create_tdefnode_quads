@@ -29,7 +29,7 @@ else:
     from pythia.pyre.units.length import m
     from pythia.pyre.units.angle import degree
 
-class CreateTdefnodeQuads(Application):
+class PytdefCreateTdefnodeQuads(Application):
     """
     This is a script to read a Tdefnode .nod file containing fault definitions and
     create Cubit/Trelis journal files to generate the corresponding geometry.
@@ -72,7 +72,7 @@ class CreateTdefnodeQuads(Application):
 
     # PUBLIC METHODS /////////////////////////////////////////////////////
 
-    def __init__(self, name="create_tdefnode_quads"):
+    def __init__(self, name="pytdef_create_tdefnode_quads"):
         Application.__init__(self, name)
         self.numFaults = 0
         self.faultExtendsUpDict = {}
@@ -476,7 +476,7 @@ class CreateTdefnodeQuads(Application):
     
 # ----------------------------------------------------------------------
 if __name__ == '__main__':
-    app = CreateTdefnodeQuads()
+    app = PytdefCreateTdefnodeQuads()
     app.run()
 
 # End of file
