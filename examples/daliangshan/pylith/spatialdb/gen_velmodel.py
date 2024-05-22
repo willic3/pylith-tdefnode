@@ -7,7 +7,6 @@ merged into PREM.
 """
 
 import numpy as np
-import pdb
 import scipy.interpolate
 from pyproj import Transformer
 import meshio
@@ -30,8 +29,6 @@ else:
     from coordsys_v3 import cs_geo
     from coordsys_v3 import cs_meshDaliangshan
     outSpatialDb = 'merged_velmodel_v3.spatialdb'
-
-# pdb.set_trace()
 
 
 # Filenames.
