@@ -1,12 +1,9 @@
 #!/usr/bin/env python
 
-import numpy
+import numpy as np
 import math
-from pyproj import Proj
-from pyproj import transform
+from pyproj import Transformer
 import scipy.spatial.distance
-# import pdb
-# pdb.set_trace()
 
 # Definitions for each input file.
 prefs = ["dls2023_estnoise_eura14", "dls2022_all", "GNSS_sites_available"]
@@ -39,9 +36,8 @@ vtkHeadTop = "# vtk DataFile Version 2.0\n" + \
 WGS84Head = "#Longitude\tLatitude\tSite\n"
 TMHead = "#Site\tEastingTM\tNorthingTM\tElevationTM\n"
 
-# Set projections.
-projTM = Proj(paramsTM)
-projWGS84 = Proj(paramsWGS84)
+# Define coordinate conversion.
+transWGS84ToTM = Transformer.from_crs(paramsWGS84, paramsTM, always_xy=True)
 
 # Arrays to hold unique sites.
 lonsTotal = None
@@ -65,7 +61,7 @@ def getUniqueSites(lonsList, latsList, stnsList):
         unique = True
         stnTest = stnsList[siteNum]
         if (stnTest in stnsTotal):
-            globalInd = numpy.where(stnsTotal == stnTest)
+            globalInd = np.where(stnsTotal == stnTest)
             lonDiff = math.fabs(lonsList[siteNum] - lonsTotal[globalInd][0])
             testLon = lonDiff > uniqueEps
             latDiff = math.fabs(latsList[siteNum] - latsTotal[globalInd][0])
@@ -80,9 +76,9 @@ def getUniqueSites(lonsList, latsList, stnsList):
             latsAddList.append(latsList[siteNum])
             stnsAddList.append(stnsList[siteNum])
 
-    lonsAdd = numpy.array(lonsAddList, dtype=numpy.float64)
-    latsAdd = numpy.array(latsAddList, dtype=numpy.float64)
-    stnsAdd = numpy.array(stnsAddList, dtype='|S8')
+    lonsAdd = np.array(lonsAddList, dtype=np.float64)
+    latsAdd = np.array(latsAddList, dtype=np.float64)
+    stnsAdd = np.array(stnsAddList, dtype='|S8')
     numAdd = lonsAdd.shape[0]
 
     return (lonsAdd, latsAdd, stnsAdd, numAdd)
@@ -103,18 +99,17 @@ def writeCartesian(coords, sites, txtHead, fileRoot, fileCs):
     f.write(txtHead)
     numPoints = coords.shape[0]
     for pointNum in range(numPoints):
-        outLine = outFmt % (sites[pointNum], coords[pointNum,0],
-                            coords[pointNum,1], coords[pointNum,2])
+        outLine = outFmt % (sites[pointNum], coords[pointNum,0], coords[pointNum,1], coords[pointNum,2])
         f.write(outLine)
     
-    # numpy.savetxt(f, coords, delimiter='\t')
+    # np.savetxt(f, coords, delimiter='\t')
     f.close()
 
     # Write VTK file.
     f = open(fileVtk, 'w')
     f.write(vtkHeadTop)
     f.write(vtkHeadBot)
-    numpy.savetxt(f, coords, delimiter='\t')
+    np.savetxt(f, coords, delimiter='\t')
     f.close()
 
     return
@@ -147,9 +142,9 @@ def readVals(inFile, skiprows=0, usecols=[0,1,2,3,4], delimiter="\t"):
     lines = f.readlines()
     numLines = len(lines)
     numVals = numLines - skiprows
-    lons = numpy.zeros(numVals, dtype=numpy.float64)
-    lats = numpy.zeros(numVals, dtype=numpy.float64)
-    stns = numpy.empty(numVals, dtype='S8')
+    lons = np.zeros(numVals, dtype=np.float64)
+    lats = np.zeros(numVals, dtype=np.float64)
+    stns = np.empty(numVals, dtype='S8')
 
     for lineNum in range(skiprows,numLines):
         line = lines[lineNum]
@@ -169,18 +164,18 @@ def findDuplicateSites(lons, lats, stns):
     """
     Function to find sites with duplicated coordinates.
     """
-    coords = numpy.column_stack((lons, lats))
+    coords = np.column_stack((lons, lats))
     distance = scipy.spatial.distance.pdist(coords)
     distMat = scipy.spatial.distance.squareform(distance)
-    closePoints = numpy.where(distMat < coincidentEps)
-    (uniq, counts) = numpy.unique(closePoints[0], return_counts=True)
-    duplicates = numpy.where(counts > 1)
+    closePoints = np.where(distMat < coincidentEps)
+    (uniq, counts) = np.unique(closePoints[0], return_counts=True)
+    duplicates = np.where(counts > 1)
     numDupSites = duplicates[0].shape[0]
     print("Number of duplicated sites:  %d" % numDupSites)
     #*********NOTE:  the loop below double-counts the duplicates since
     # the distance matrix is symmetric.  See if I can fix this.
     for dupNum in range(numDupSites):
-        inds = numpy.where(closePoints[0] == duplicates[0][dupNum])
+        inds = np.where(closePoints[0] == duplicates[0][dupNum])
         print("  Duplicate site:  %d" % dupNum)
         numDupsForSite = inds[0].shape[0]
         for siteDup in range(numDupsForSite):
@@ -195,18 +190,14 @@ def findDuplicateSites(lons, lats, stns):
 for fileNum in range(len(prefs)):
     inFile = prefs[fileNum] + suffs[fileNum]
     if (len(cols[fileNum]) < 5):
-        (lons, lats, stns) = numpy.loadtxt(inFile, skiprows=skips[fileNum],
-                                           usecols=cols[fileNum], unpack=True,
-                                           delimiter=delims[fileNum],
-                                           dtype=numpy.str)
-        lons = numpy.float64(lons)
-        lats = numpy.float64(lats)
+        (lons, lats, stns) = np.loadtxt(inFile, skiprows=skips[fileNum], usecols=cols[fileNum], unpack=True,
+                                        delimiter=delims[fileNum], dtype=str)
+        lons = np.float64(lons)
+        lats = np.float64(lats)
     else:
-        (lons, lats, stns) = readVals(inFile, skiprows=skips[fileNum],
-                                      usecols=cols[fileNum],
-                                      delimiter=delims[fileNum])
+        (lons, lats, stns) = readVals(inFile, skiprows=skips[fileNum], usecols=cols[fileNum], delimiter=delims[fileNum])
 
-    negLons = numpy.where(lons < 0.0)
+    negLons = np.where(lons < 0.0)
     lons[negLons] += 360.0
     numOrig = lons.shape[0]
 
@@ -219,9 +210,9 @@ for fileNum in range(len(prefs)):
     else:
         (lonsAdd, latsAdd, stnsAdd, numAdd) = getUniqueSites(lons, lats, stns)
         if (numAdd != 0):
-            lonsTotal = numpy.append(lonsTotal, lonsAdd)
-            latsTotal = numpy.append(latsTotal, latsAdd)
-            stnsTotal = numpy.append(stnsTotal, stnsAdd)
+            lonsTotal = np.append(lonsTotal, lonsAdd)
+            latsTotal = np.append(latsTotal, latsAdd)
+            stnsTotal = np.append(stnsTotal, stnsAdd)
             numUnique = lonsTotal.shape[0]
 
     # Write info to summary file.
@@ -231,9 +222,9 @@ for fileNum in range(len(prefs)):
     fsumm.write("\n")
 
     # Perform coordinate transformations and print.
-    depths = zVal * numpy.ones_like(lons)
-    (xTM, yTM, zTM) = transform(projWGS84, projTM, lons, lats, depths)
-    coordsTM = numpy.column_stack((xTM, yTM, zTM))
+    depths = zVal * np.ones_like(lons)
+    (xTM, yTM, zTM) = transWGS84ToTM.transform(lons, lats, depths)
+    coordsTM = np.column_stack((xTM, yTM, zTM))
 
     writeCartesian(coordsTM, stns, TMHead, prefs[fileNum], 'tm')
     writeWGS84(lons, lats, stns, prefs[fileNum])
@@ -248,9 +239,9 @@ fsumm.close()
 # Print combined site list.
 print("")
 print("Number of unique sites:  %d" % numUnique)
-depths = zVal * numpy.ones_like(lonsTotal)
-(xTM, yTM, zTM) = transform(projWGS84, projTM, lonsTotal, latsTotal, depths)
-coordsTM = numpy.column_stack((xTM, yTM, zTM))
+depths = zVal * np.ones_like(lonsTotal)
+(xTM, yTM, zTM) = transWGS84ToTM.transform(lonsTotal, latsTotal, depths)
+coordsTM = np.column_stack((xTM, yTM, zTM))
 
 writeCartesian(coordsTM, stnsTotal, TMHead, combinedPref, 'tm')
 writeWGS84(lonsTotal, latsTotal, stnsTotal, combinedPref)
