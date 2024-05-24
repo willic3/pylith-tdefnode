@@ -9,7 +9,6 @@ merged into PREM.
 import numpy as np
 import scipy.interpolate
 from pyproj import Transformer
-import meshio
 import platform
 # For now, if we are running Python 2, we will also assume PyLith 2.
 PYTHON_MAJOR_VERSION = int(platform.python_version_tuple()[0])
@@ -64,9 +63,9 @@ numInterpHoriz = 3
 numInterpVert = 3
 
 # Projections.
-WGS84 = "+proj=lonlat +ellps=WGS84 +datum=WGS84 +towgs84=0.0,0.0,0.0"
-TM = "+proj=tmerc +lon_0=102.5 +lat_0=28.0 +ellps=WGS84 +datum=WGS84 +k=0.9996 +towgs84=0.0,0.0,0.0"
-transWGS84ToTM = Transformer.from_crs(WGS84, TM, always_xy=True)
+WGS84 = "+proj=lonlat +ellps=WGS84 +datum=WGS84 +towgs84=0.0,0.0,0.0 always_xy=True"
+TM = "+proj=tmerc +lon_0=102.5 +lat_0=28.0 +ellps=WGS84 +datum=WGS84 +k=0.9996 +towgs84=0.0,0.0,0.0 always_xy=True"
+transWGS84ToTM = Transformer.from_crs(WGS84, TM)
 
 # Coordinate systems.
 csGeo = cs_geo()
