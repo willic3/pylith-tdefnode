@@ -1,9 +1,0 @@
- 
-#Fault smoothing constraints
-#    Fault  Type    A1     A2      A3    A4   A5
- 
-#Transient smoothing constraints
-#    Trans  Type    A1     A2      A3    A4   A5
- 
-#Transient constraints
-#     Srce  Type    Min       Max     Value       Diff    NP   Penalty
