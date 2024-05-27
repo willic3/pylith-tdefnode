@@ -4,7 +4,6 @@ This is a script to read Green's function info from DEFNODE and create a
 VTK file. This version forms quadrilateral cells.
 """
 
-# import pdb
 import os
 import glob
 import platform
@@ -19,8 +18,7 @@ else:
 
 import numpy as np
 import scipy.spatial
-from pyproj import Proj
-from pyproj import transform
+from pyproj import Transformer
 from fortranformat import FortranRecordReader
 
 class PytdefReadDefGf(Application):
@@ -64,7 +62,7 @@ class PytdefReadDefGf(Application):
     vtkResponsePrefix.meta['tip'] = "Prefix given to response output names."
 
     outputProjection = inventory.str("output_projection",
-                                          default="+proj=tmerc +lon_0=175.45 +lat_0=-40.825 +ellps=WGS84 +datum=WGS84 +k=0.9996 +towgs84=0.0,0.0,0.0")
+                                     default="+proj=tmerc +lon_0=175.45 +lat_0=-40.825 +ellps=WGS84 +datum=WGS84 +k=0.9996 +towgs84=0.0,0.0,0.0")
     outputProjection.meta['tip'] = "Proj4 parameters defining output projection."
                                     
     
@@ -95,16 +93,12 @@ class PytdefReadDefGf(Application):
         self.responseE = None
         self.responseN = None
 
-        self.outProj = None
-        WGS84 = "+proj=lonlat +ellps=WGS84 +datum=WGS84 +towgs84=0.0,0.0,0.0"
-        self.projWGS84 = Proj(WGS84)
+        self.projWGS84 = "+proj=lonlat +ellps=WGS84 +datum=WGS84 +towgs84=0.0,0.0,0.0"
 
         return
 
 
     def main(self):
-        # pdb.set_trace()
-        self.outProj = Proj(self.outputProjection)
         self._getFileLists()
         self._readDefnodeGf()
         self._writeImpulses()
@@ -137,6 +131,8 @@ class PytdefReadDefGf(Application):
         outputDir = self._checkDir(pathName)
         pathName = os.path.dirname(self.vtkResponseRoot)
         outputDir = self._checkDir(pathName)
+
+        self.transWGS84ToOutput = Transformer.from_crs(self.projWGS84, self.outputProjection, always_xy=True)
 
         return
 
@@ -238,20 +234,20 @@ class PytdefReadDefGf(Application):
         if (self.numGpsFiles != 0):
             self.gpsResponseCoordsGeog = self._getSiteCoords(self.GpsFiles[self.gpsReprSite], 'gps')
             self.gpsResponseCoords = np.zeros((self.numGpsResponses, 3), dtype=np.float64)
-            (self.gpsResponseCoords[:,0], self.gpsResponseCoords[:,1]) = transform(
-                self.projWGS84, self.outProj, self.gpsResponseCoordsGeog[:,0], self.gpsResponseCoordsGeog[:,1])
+            (self.gpsResponseCoords[:,0], self.gpsResponseCoords[:,1]) = self.transWGS84ToOutput.transform(
+                self.gpsResponseCoordsGeog[:,0], self.gpsResponseCoordsGeog[:,1])
             self.gpsResponseTree = scipy.spatial.cKDTree(self.gpsResponseCoordsGeog)
         if (self.numInsarFiles != 0):
             self.insarResponseCoordsGeog = self._getSiteCoords(self.InsarFiles[self.insarReprSite], 'insar')
             self.insarResponseCoords = np.zeros((self.numInsarResponses, 3), dtype=np.float64)
-            (self.insarResponseCoords[:,0], self.insarResponseCoords[:,1]) = transform(
-                self.projWGS84, self.outProj, self.insarResponseCoordsGeog[:,0], self.insarResponseCoordsGeog[:,1])
+            (self.insarResponseCoords[:,0], self.insarResponseCoords[:,1]) = self.transWGS84ToOutput.transform(
+                self.insarResponseCoordsGeog[:,0], self.insarResponseCoordsGeog[:,1])
             self.insarResponseTree = scipy.spatial.cKDTree(self.insarResponseCoordsGeog)
         if (self.numUpFiles != 0):
             self.upResponseCoordsGeog = self._getSiteCoords(self.UpFiles[self.upReprSite], 'up')
             self.upResponseCoords = np.zeros((self.numUpResponses, 3), dtype=np.float64)
-            (self.upResponseCoords[:,0], self.upResponseCoords[:,1]) = transform(
-                self.projWGS84, self.outProj, self.upResponseCoordsGeog[:,0], self.upResponseCoordsGeog[:,1])
+            (self.upResponseCoords[:,0], self.upResponseCoords[:,1]) = self.transWGS84ToOutput.transform(
+                self.upResponseCoordsGeog[:,0], self.upResponseCoordsGeog[:,1])
             self.upResponseTree = scipy.spatial.cKDTree(self.upResponseCoordsGeog)
         return
   
@@ -493,7 +489,7 @@ class PytdefReadDefGf(Application):
             lat = impulseGeogArray[:,1]
             elev = impulseGeogArray[:,2]
             (self.faultCoords[:,0], self.faultCoords[:,1], self.faultCoords[:,2]) = \
-              transform(self.projWGS84, self.outProj, lon, lat, elev)
+              self.transWGS84ToOutput.transform(lon, lat, elev)
     
         # Loop over InSAR files.
         impulseGeogCoords2 = []
@@ -509,7 +505,7 @@ class PytdefReadDefGf(Application):
             lon = impulseGeogArray[:,0]
             lat = impulseGeogArray[:,1]
             elev = impulseGeogArray[:,2]
-            (self.faultCoords[:,0], self.faultCoords[:,1], self.faultCoords[:,2]) = transform(self.projWGS84, self.outProj, lon, lat, elev)
+            (self.faultCoords[:,0], self.faultCoords[:,1], self.faultCoords[:,2]) = self.transWGS84ToOutput.transform(lon, lat, elev)
 
         if (self.gfType == 'defnode'):
             impulseGeogCoords3 = []
@@ -527,7 +523,7 @@ class PytdefReadDefGf(Application):
                 lon = impulseGeogArray[:,0]
                 lat = impulseGeogArray[:,1]
                 elev = impulseGeogArray[:,2]
-                (self.faultCoords[:,0], self.faultCoords[:,1], self.faultCoords[:,2]) = transform(self.projWGS84, self.outProj, lon, lat, elev)
+                (self.faultCoords[:,0], self.faultCoords[:,1], self.faultCoords[:,2]) = self.transWGS84ToOutput.transform(lon, lat, elev)
 
         return
       

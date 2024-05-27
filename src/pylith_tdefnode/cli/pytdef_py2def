@@ -12,6 +12,7 @@
 ## @brief Python application to integrate PyLith-generated Green's functions to
 ## produce GF for DEFNODE or TDEFNODE.
 
+# import pdb
 import math
 import os
 import sys
@@ -32,8 +33,7 @@ import numpy as np
 import h5py
 from fortranformat import FortranRecordReader
 from fortranformat import FortranRecordWriter
-from pyproj import Proj
-from pyproj import transform
+from pyproj import Transformer
 import scipy.spatial
 import scipy.spatial.distance
 import shapely.geometry
@@ -222,9 +222,8 @@ class PytdefPy2Def(Application):
         self.unmatchedUpSites = None
         self.unmatchedUpSiteCoords = None
 
-        WGS84 = "+proj=lonlat +ellps=WGS84 +datum=WGS84 +towgs84=0.0,0.0,0.0"
-        self.projWGS84 = Proj(WGS84)
-        self.projPylith = None
+        self.WGS84 = "+proj=lonlat +ellps=WGS84 +datum=WGS84 +towgs84=0.0,0.0,0.0"
+        self.transWGS84ToOutput = None
 
         self.quadWeight = np.array([[1.0, 0.0, 0.0, 0.0],
                                     [0.0, 1.0, 0.0, 0.0],
@@ -239,9 +238,8 @@ class PytdefPy2Def(Application):
 
 
     def main(self):
-        # import pdb
         # pdb.set_trace()
-        self.projPylith = Proj(self.meshCoordsys)
+        self.transWGS84ToOutput = Transformer.from_crs(self.WGS84, self.meshCoordsys, always_xy=True)
         print("Working on fault number %d:" % self.defnodeFaultNum)
         self._readDefnode()
         if (self.gfType == "defnode"):
@@ -269,6 +267,7 @@ class PytdefPy2Def(Application):
         """
         Setup members using inventory.
         """
+        # pdb.set_trace()
         Application._configure(self)
 
         return
@@ -1262,7 +1261,10 @@ class PytdefPy2Def(Application):
         dataIFLL = h5py.File(llImpulseInfoFile, 'r')
         self.faultCoords = dataIFLL['geometry/vertices'][:]
         self.numFaultVerts = self.faultCoords.shape[0]
-        self.faultConnect = np.array(dataIFLL['topology/cells'][:], dtype=np.int64)
+        if (PYTHON_MAJOR_VERSION == 2):
+            self.faultConnect = np.array(dataIFLL['topology/cells'][:], dtype=np.int64)
+        else:
+            self.faultConnect = np.array(dataIFLL['viz/topology/cells'][:], dtype=np.int64)
         self.numFaultCells = self.faultConnect.shape[0]
         faultNormal = dataIFLL['vertex_fields/normal_dir'][0,:,:]
         faultStrike = dataIFLL['vertex_fields/strike_dir'][0,:,:]
@@ -1708,7 +1710,7 @@ class PytdefPy2Def(Application):
                 coordsGeogCurrent = gfCoordsGeog[pointNum,:].reshape(1,2)
             pointNum += 1
 
-        (x, y) = transform(self.projWGS84, self.projPylith, coordsGeogCurrent[:,0], coordsGeogCurrent[:,1])
+        (x, y) = self.transWGS84ToOutput.transform(coordsGeogCurrent[:,0], coordsGeogCurrent[:,1])
         coordsCartCurrent = np.column_stack((x, y))
         numTotalSites = coordsGeogCurrent.shape[0]
 
@@ -1746,7 +1748,7 @@ class PytdefPy2Def(Application):
                 coordsGeogCurrent = gfCoordsGeog[pointNum,:].reshape(1,2)
             pointNum += 1
 
-        (x, y) = transform(self.projWGS84, self.projPylith, coordsGeogCurrent[:,0], coordsGeogCurrent[:,1])
+        (x, y) = self.transWGS84ToOutput.transform(coordsGeogCurrent[:,0], coordsGeogCurrent[:,1])
         coordsCartCurrent = np.column_stack((x, y))
         numTotalSites = coordsGeogCurrent.shape[0]
 
@@ -1826,7 +1828,7 @@ class PytdefPy2Def(Application):
             self.numDdNodes = max(ddNode, self.numDdNodes)
 
         # Convert to Cartesian coordinates.
-        (x, y, z) = transform(self.projWGS84, self.projPylith, defNodeCoordsGeog[:,0], defNodeCoordsGeog[:,1], defNodeCoordsGeog[:,2])
+        (x, y, z) = self.transWGS84ToOutput.transform(defNodeCoordsGeog[:,0], defNodeCoordsGeog[:,1], defNodeCoordsGeog[:,2])
         self.defNodeCoords[:,0] = x
         self.defNodeCoords[:,1] = y
         self.defNodeCoords[:,2] = z
