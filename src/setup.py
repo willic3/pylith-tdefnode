@@ -9,6 +9,7 @@ setup(name='pylith_tdefnode',
       scripts=['pylith_tdefnode/cli/pytdef_compare_def_gf',
                'pylith_tdefnode/cli/pytdef_create_cell_size',
                'pylith_tdefnode/cli/pytdef_create_tdefnode_quads',
+               'pylith_tdefnode/cli/pytdef_get_tdef_moment',
                'pylith_tdefnode/cli/pytdef_py2def',
                'pylith_tdefnode/cli/pytdef_read_def_gf'],
 

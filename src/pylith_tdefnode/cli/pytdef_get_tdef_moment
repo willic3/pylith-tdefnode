@@ -11,7 +11,7 @@
 
 ## @brief Python application to read TDefnode fault info and compute associated shear modulus.
 
-# import pdb
+import pdb
 import platform
 
 # For now, if we are running Python 2, we will also assume PyLith 2.
@@ -89,7 +89,7 @@ class PytdefGetTdefMoment(Application):
 
 
     def main(self):
-        # pdb.set_trace()
+        pdb.set_trace()
         self._getMoment()
         return
 
@@ -100,6 +100,7 @@ class PytdefGetTdefMoment(Application):
         """
         Setup members using inventory.
         """
+        # pdb.set_trace()
         Application._configure(self)
 
         return
@@ -130,23 +131,33 @@ class PytdefGetTdefMoment(Application):
         coordsNeg = np.zeros((numPatches, 3), dtype=np.float64)
         cellCenters = np.zeros((numPatches, 3), dtype=np.float64)
         faultNum = np.zeros(numPatches, dtype=np.int32)
+        if (PYTHON_MAJOR_VERSION == 2):
+            csLocal = self.coordsysLocal
+            csTDefnode = self.coordsysTDefnode
+            csLocal._configure()
+            csLocal.initialize()
+            csTDefnode._configure()
+            csTDefnode.initialize()
+        else:
+            csLocal = self.coordsysLocal
+            csTDefnode = self.coordsysTDefnode
+
         for patchNum in range(numPatches):
             lineStart = patchNum*5
             lineEnd = lineStart + 5
             (faultNum[patchNum],
-             cellCenters[patchNum,:], coordsPos[patchNum,:], coordsNeg[patchNum,:]) = self._getSampleCoords(lines[lineStart:lineEnd])
+             cellCenters[patchNum,:], coordsPos[patchNum,:], coordsNeg[patchNum,:]) = self._getSampleCoords(lines[lineStart:lineEnd], csLocal, csTDefnode)
 
         # Query spatial database to get Vs and density.
         dataPos = np.zeros((numPatches, 2), dtype=np.float64)
         dataNeg = np.zeros((numPatches, 2), dtype=np.float64)
         data = np.zeros((numPatches, 3), dtype=np.float64)
         err = np.zeros((numPatches,), dtype=np.int32)
-        csLocal = self.coordsysLocal
 
         db = self.dbVelocity
         db.open()
         if (PYTHON_MAJOR_VERSION == 2):
-            db.queryValues(["density", "vs"])
+            db.queryVals(["density", "vs"])
         else:
             db.setQueryValues(["density", "vs"])
         db.multiquery(dataPos, err, coordsPos, csLocal)
@@ -156,7 +167,7 @@ class PytdefGetTdefMoment(Application):
         vsPos = dataPos[:,1]
         vsNeg = dataNeg[:,1]
         if (PYTHON_MAJOR_VERSION == 2):
-            db.queryValues(["density", "vs", "vp"])
+            db.queryVals(["density", "vs", "vp"])
         else:
             db.setQueryValues(["density", "vs", "vp"])
         db.multiquery(data, err, cellCenters, csLocal)
@@ -175,10 +186,16 @@ class PytdefGetTdefMoment(Application):
             lineStart = patchNum*5
             lineEnd = lineStart + 5
             lineHead = lines[lineStart].strip()
-            effShearModulusStr = f'{effShearModulus[patchNum]:.6g}'
-            densityStr = f'{density[patchNum]:.6g}'
-            vsStr = f'{vs[patchNum]:.6g}'
-            vpStr = f'{vp[patchNum]:.6g}'
+            # if (PYTHON_MAJOR_VERSION ==2):
+            effShearModulusStr = '%.5e' % effShearModulus[patchNum]
+            densityStr = '%.6f' % density[patchNum]
+            vsStr = '%.6f' % vs[patchNum]
+            vpStr = '%.6f' % vp[patchNum]
+            # else:
+            #     effShearModulusStr = f'{effShearModulus[patchNum]:.6g}'
+            #     densityStr = f'{density[patchNum]:.6g}'
+            #     vsStr = f'{vs[patchNum]:.6g}'
+            #     vpStr = f'{vp[patchNum]:.6g}'
             lineHeadMod = lineHead + '  ' + effShearModulusStr + '  ' + densityStr + '  ' + vsStr + '  ' + vpStr + '\n'
             w.write(lineHeadMod)
             for lineNum in range(lineStart + 1, lineEnd):
@@ -243,7 +260,7 @@ class PytdefGetTdefMoment(Application):
         
                 
         
-    def _getSampleCoords(self, lines):
+    def _getSampleCoords(self, lines, csLocal, csTDefnode):
         """
         Get sample coordinates for subsegment by sampling +/- normal distances to the fault.
         """
@@ -264,8 +281,6 @@ class PytdefGetTdefMoment(Application):
 
         # Convert coordinates to local Cartesian system and compute normals.
         coords = np.column_stack((lons, lats, depths))
-        csLocal = self.coordsysLocal
-        csTDefnode = self.coordsysTDefnode
         convert(coords, csLocal, csTDefnode)
         v1a = coords[1,:] - coords[0,:]
         v2a = coords[3,:] - coords[0,:]
