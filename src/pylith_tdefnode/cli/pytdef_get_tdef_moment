@@ -11,7 +11,6 @@
 
 ## @brief Python application to read TDefnode fault info and compute associated shear modulus.
 
-import pdb
 import platform
 
 # For now, if we are running Python 2, we will also assume PyLith 2.
@@ -89,7 +88,6 @@ class PytdefGetTdefMoment(Application):
 
 
     def main(self):
-        pdb.set_trace()
         self._getMoment()
         return
 
@@ -100,7 +98,6 @@ class PytdefGetTdefMoment(Application):
         """
         Setup members using inventory.
         """
-        # pdb.set_trace()
         Application._configure(self)
 
         return

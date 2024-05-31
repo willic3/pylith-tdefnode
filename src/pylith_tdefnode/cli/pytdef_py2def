@@ -12,7 +12,6 @@
 ## @brief Python application to integrate PyLith-generated Green's functions to
 ## produce GF for DEFNODE or TDEFNODE.
 
-# import pdb
 import math
 import os
 import sys
@@ -238,7 +237,6 @@ class PytdefPy2Def(Application):
 
 
     def main(self):
-        # pdb.set_trace()
         self.transWGS84ToOutput = Transformer.from_crs(self.WGS84, self.meshCoordsys, always_xy=True)
         print("Working on fault number %d:" % self.defnodeFaultNum)
         self._readDefnode()
@@ -267,7 +265,6 @@ class PytdefPy2Def(Application):
         """
         Setup members using inventory.
         """
-        # pdb.set_trace()
         Application._configure(self)
 
         return
@@ -1186,6 +1183,11 @@ class PytdefPy2Def(Application):
         """
         print("    Getting PyLith response coordinates and values:")
         
+        if (PYTHON_MAJOR_VERSION == 2):
+            dipSign = 1.0
+        else:
+            dipSign = -1.0
+
         responseValsNM = None
         # Open response files and get coordinates.
         dataRLL = h5py.File(self.llResponseFile, 'r')
@@ -1226,7 +1228,7 @@ class PytdefPy2Def(Application):
         dataRLL['vertex_fields/displacement'].read_direct(responseValsLL)
         self.numImpulses = responseValsLL.shape[0]
         dataRUD['vertex_fields/displacement'].read_direct(responseValsUD)
-        responseValsUD = responseValsUD[:,minIndicesRCLU,:]
+        responseValsUD = dipSign*responseValsUD[:,minIndicesRCLU,:]
         if (self.defnodeFaultSlipType == '3d'):
             responseValsNM = np.zeros(shape, dtype=np.float64)
             dataRNM['vertex_fields/displacement'].read_direct(responseValsNM)
@@ -1263,12 +1265,16 @@ class PytdefPy2Def(Application):
         self.numFaultVerts = self.faultCoords.shape[0]
         if (PYTHON_MAJOR_VERSION == 2):
             self.faultConnect = np.array(dataIFLL['topology/cells'][:], dtype=np.int64)
+            dipDirStr = 'vertex_fields/dip_dir'
+            dipDirSign = 1.0
         else:
             self.faultConnect = np.array(dataIFLL['viz/topology/cells'][:], dtype=np.int64)
+            dipDirStr = 'vertex_fields/up_dip_dir'
+            dipDirSign = -1.0
         self.numFaultCells = self.faultConnect.shape[0]
         faultNormal = dataIFLL['vertex_fields/normal_dir'][0,:,:]
         faultStrike = dataIFLL['vertex_fields/strike_dir'][0,:,:]
-        faultDip = dataIFLL['vertex_fields/dip_dir'][0,:,:]
+        faultDip = dipDirSign*dataIFLL[dipDirStr][0,:,:]
         dataIFLL.close()
         #************** Experiment to make sure normal points upward. **************
         """
@@ -1367,6 +1373,12 @@ class PytdefPy2Def(Application):
 
         slipNMNZ = None
         # Read impulses.
+        if (PYTHON_MAJOR_VERSION == 2):
+            llInd = 0
+            udInd = 1
+        else:
+            llInd = 1
+            udInd = 2
         # Trying new method using read_direct.
         dataFLL = h5py.File(self.llImpulseFile, 'r')
         dataFUD = h5py.File(self.udImpulseFile, 'r')
@@ -1375,12 +1387,12 @@ class PytdefPy2Def(Application):
         shape = slipDat.shape
         slipLL = np.zeros(shape, dtype=np.float64)
         dataFLL['vertex_fields/slip'].read_direct(slipLL)
-        slipLL = slipLL[:,:,0]
+        slipLL = slipLL[:,:,llInd]
 
         print("      Reading updip fault impulses:")
         slipUD = np.zeros(shape, dtype=np.float64)
         dataFUD['vertex_fields/slip'].read_direct(slipUD)
-        slipUD = slipUD[:,:,1]
+        slipUD = slipUD[:,:,udInd]
         dataFLL.close()
         dataFUD.close()
         slipLLNZ = slipLL.nonzero()

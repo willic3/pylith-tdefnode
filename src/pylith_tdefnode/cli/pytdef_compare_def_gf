@@ -4,7 +4,6 @@ This is a script to read two sets of DEFNODE Green's functions, computes
 the differences and outputs the results in a VTK file.
 """
 
-# import pdb
 import os
 import glob
 import platform
@@ -116,7 +115,6 @@ class PytdefCompareDefGf(Application):
 
 
     def main(self):
-        # pdb.set_trace()
         print("Reference directory:   %s" % self.defnodeRefVtkDir)
         print("Comparison directory:  %s" % self.defnodeCompareVtkDir)
         self._getFileLists()

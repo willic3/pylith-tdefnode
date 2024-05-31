@@ -197,8 +197,6 @@ class PytdefCreateCellSize(Application):
 
 
     def main(self):
-        # import pdb
-        # pdb.set_trace()
 
         funcFracs = [float(i) for i in self.sizeFuncFracs]
         self.sizeFuncRatios = np.array(funcFracs, dtype=np.float64)
@@ -239,7 +237,6 @@ class PytdefCreateCellSize(Application):
         Setup members using inventory.
         """
 
-        # pdb.set_trace()
         Application._configure(self)
         self.rbfConstNsSizes = [float(i) for i in self.rbfConstNsSizes]
         self.rbfConstNsSampfreq = [int(i) for i in self.rbfConstNsSampfreq]
