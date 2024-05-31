@@ -31,4 +31,4 @@ There is another script to explicitly compare two sets of GF:
 pytdef_compare_def_gf cdf_az_pyhet_minus_pyhom.cfg
 ```
 
-This script will compare the differences between two sets of GF using the VTK files produced by `pytdef_read_def_gf`. The output will consist of a set of VTK files containing the differences, along with a histogram of the differences.
+This script will compare the differences between two sets of GF using the VTK files produced by `pytdef_read_def_gf`. The output will consist of a set of VTK files containing the differences, along with a histogram of the differences. Note that you must have run `pytdef_read_def_gf` on both of the sets of GF prior to using this script.
