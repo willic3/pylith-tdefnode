@@ -16,6 +16,6 @@ If running on a workstation, it is generally a good idea to save stderr and stdo
 pylith gf_anning_zem_ll_heter.cfg --nodes=10 > run_az_ll_homog_workstation.log 2>&1 &
 ```
 
-It is unlikely you would be able to run more than one job at a time, and each one will take some time to run. Note that I have not created all of the workstation scripts, since I am running everything on a cluster.
+It is unlikely you would be able to run more than one or two jobs at a time if running on a workstation, and each one will take some time to run.
 
 ### NOTE: For the current version of PyLith (v 3.0), running on more than 3 or 4 cores will be very slow or will not converge.
