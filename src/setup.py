@@ -13,20 +13,14 @@ setup(name='pylith_tdefnode',
                'pylith_tdefnode/cli/pytdef_py2def',
                'pylith_tdefnode/cli/pytdef_read_def_gf'],
 
-      requires=[
-          'os',
-          'glob',
-          'platform',
+      install_requires=[
           'matplotlib',
-          'sys',
-          'pathlib',
-          'math',
           'numpy',
           'scipy',
           'shapely',
           'netCDF4',
           'h5py',
           'pyproj',
-          'fortranformat',
+          'fortranformat<2',
           'pythia']
       )
