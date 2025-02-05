@@ -83,9 +83,12 @@ class PytdefReadDefGf(Application):
         self.InsarFiles = []
         self.UpFiles = []
         self.faultCoords = None
-        self.responseGpsCoords = None
-        self.responseInsarCoords = None
-        self.responseUpCoords = None
+        self.gpsResponseCoordsGeog = None
+        self.insarResponseCoordsGeog = None
+        self.upResponseCoordsGeog = None
+        self.gpsResponseCoords = None
+        self.insarResponseCoords = None
+        self.upResponseCoords = None
         self.defGpsSitesUse = []
         self.defInsarSitesUse = []
         self.defUpSitesUse = []
@@ -100,6 +103,7 @@ class PytdefReadDefGf(Application):
 
     def main(self):
         self._getFileLists()
+        self._getSiteLocations()
         self._readDefnodeGf()
         self._writeImpulses()
 
@@ -169,20 +173,15 @@ class PytdefReadDefGf(Application):
         if (gfType == 'up'):
             files = self.UpFiles
 
-        maxNumSites = 0
-        maxSitesGf = 0
         for fileNum in range(len(files)):
             f = open(files[fileNum], 'r')
             line = f.readline()
             (pref, kf, ix, iz, numSites, lon, lat, depth, gfX, gfW, ish, nlay, defVers, date, xMom, gpsNear) = self.gfHeadFmt.read(line)
             self.numAsNodes = max(self.numAsNodes, ix)
             self.numDdNodes = max(self.numDdNodes, iz)
-            if (numSites > maxNumSites):
-                maxNumSites = numSites
-                maxSitesGf = fileNum
             f.close()
 
-        return (maxNumSites, maxSitesGf)
+        return
 
 
     def _getFileLists(self):
@@ -200,7 +199,7 @@ class PytdefReadDefGf(Application):
         self.numGpsFiles = len(self.GpsFiles)
         if (self.numGpsFiles != 0):
             self.numImpulses = self.numGpsFiles
-            (self.numGpsResponses, self.gpsReprSite) = self._getHeaderInfo('gps')
+            self._getHeaderInfo('gps')
 
         if (self.gfType == 'tdefnode'):
             searchInsar = os.path.join(totalGfPath, faultString + '*i')
@@ -213,8 +212,7 @@ class PytdefReadDefGf(Application):
                     raise ValueError(msg)
             if (self.numInsarFiles != 0):
                 self.numImpulses = self.numInsarFiles
-                (self.numInsarResponses, self.insarReprSite) = self._getHeaderInfo('insar')
-
+                self._getHeaderInfo('insar')
 
         if (self.gfType == 'defnode'):
             searchUp = os.path.join(totalGfPath, faultString + '*u')
@@ -229,59 +227,11 @@ class PytdefReadDefGf(Application):
             if (self.numUpFiles != 0):
                 self.numImpulses = self.numUpFiles
             if (self.numGpsFiles == 0):
-                (self.numUpResponses, self.upReprSite) = self._getHeaderInfo('up')
+                self._getHeaderInfo('up')
 
-        if (self.numGpsFiles != 0):
-            self.gpsResponseCoordsGeog = self._getSiteCoords(self.GpsFiles[self.gpsReprSite], 'gps')
-            self.gpsResponseCoords = np.zeros((self.numGpsResponses, 3), dtype=np.float64)
-            (self.gpsResponseCoords[:,0], self.gpsResponseCoords[:,1]) = self.transWGS84ToOutput.transform(
-                self.gpsResponseCoordsGeog[:,0], self.gpsResponseCoordsGeog[:,1])
-            self.gpsResponseTree = scipy.spatial.cKDTree(self.gpsResponseCoordsGeog)
-        if (self.numInsarFiles != 0):
-            self.insarResponseCoordsGeog = self._getSiteCoords(self.InsarFiles[self.insarReprSite], 'insar')
-            self.insarResponseCoords = np.zeros((self.numInsarResponses, 3), dtype=np.float64)
-            (self.insarResponseCoords[:,0], self.insarResponseCoords[:,1]) = self.transWGS84ToOutput.transform(
-                self.insarResponseCoordsGeog[:,0], self.insarResponseCoordsGeog[:,1])
-            self.insarResponseTree = scipy.spatial.cKDTree(self.insarResponseCoordsGeog)
-        if (self.numUpFiles != 0):
-            self.upResponseCoordsGeog = self._getSiteCoords(self.UpFiles[self.upReprSite], 'up')
-            self.upResponseCoords = np.zeros((self.numUpResponses, 3), dtype=np.float64)
-            (self.upResponseCoords[:,0], self.upResponseCoords[:,1]) = self.transWGS84ToOutput.transform(
-                self.upResponseCoordsGeog[:,0], self.upResponseCoordsGeog[:,1])
-            self.upResponseTree = scipy.spatial.cKDTree(self.upResponseCoordsGeog)
         return
   
     
-    def _getSiteCoords(self, fileName, dataType):
-        """
-        Get site coordinates from the given file.
-        """
-        lineFmt = self.gfGpsFmt
-        if (dataType == 'gps'):
-            lineFmt = self.gfGpsFmt
-        elif (dataType == 'insar'):
-            lineFmt = self.gfInsarFmt
-        elif (dataType == 'up'):
-            lineFmt = self.gfUpFmt
-
-        f = open(fileName, 'r')
-        lines = f.readlines()
-        numLines = len(lines)
-        numSites = numLines - 1
-        coords = np.zeros((numSites, 2), dtype=np.float64)
-        siteNum = 0
-
-        for lineNum in range(1, numLines):
-            vars = lineFmt.read(lines[lineNum])
-            coords[siteNum,0] = vars[1]
-            coords[siteNum,1] = vars[2]
-            siteNum += 1
-
-        f.close()
-
-        return coords
-
-
     def _matchCoords(self, lon, lat, refCoordTree):
         """
         Match lon/lat coords from file to reference coordinates.
@@ -290,10 +240,12 @@ class PytdefReadDefGf(Application):
         eps = 0.001
         coordsFind = np.column_stack((lon, lat))
         coordInds = refCoordTree.query_ball_point(coordsFind, eps)
-        checkLen = np.array([len(i)>1 for i in coordInds])
-        if (np.any(checkLen)):
+        checkDuplicate = np.array([len(i)>1 for i in coordInds])
+        if (np.any(checkDuplicate)):
             msg = 'More than one matching site coordinate found.'
             raise ValueError(msg)
+        # matchInds = np.array([i[0] if len(i) > 0 for i in coordInds])
+        # matchInds = np.array([i[0] if len(i) > 0 else -1 for i in coordInds])
         matchInds = np.array([i[0] for i in coordInds])
 
         return matchInds
@@ -359,6 +311,87 @@ class PytdefReadDefGf(Application):
         
         return coords
   
+
+    def _readTDefGf(self, gfFile, coordsGeog):
+        """
+        Function to read TDEFNODE Green's function file.
+        """
+        epsilon = 1.0e-5
+        coordsGeogCurrent = None
+        if (coordsGeog is not None):
+            coordsGeogCurrent = coordsGeog.copy()
+        f = open(gfFile, 'r')
+        fLines = f.readlines()
+        numSites = len(fLines) - 1
+        gfFortran = '(A1, 2f10.4, 1x, (6d20.13))'
+        gfFmt = FortranRecordReader(gfFortran)
+        gfCoordsGeog = np.zeros((numSites, 2), dtype=np.float64)
+        pointNum = 0
+
+        for lineNum in range(1, numSites + 1):
+            (type, gfCoordsGeog[pointNum,0], gfCoordsGeog[pointNum,1], gf1, gf2, gf3, gf4, gf5, gf6) = gfFmt.read(fLines[lineNum])
+            if (coordsGeogCurrent is not None):
+                diff = coordsGeogCurrent - gfCoordsGeog[pointNum,:]
+                norm = np.linalg.norm(diff, axis=1)
+                indMin = np.argmin(norm)
+                if (norm[indMin] > epsilon):
+                    coordsGeogCurrent = np.append(coordsGeogCurrent, gfCoordsGeog[pointNum,:].reshape(1,2), axis=0)
+            else:
+                coordsGeogCurrent = gfCoordsGeog[pointNum,:].reshape(1,2)
+            pointNum += 1
+
+        (x, y) = self.transWGS84ToOutput.transform(coordsGeogCurrent[:,0], coordsGeogCurrent[:,1])
+        coordsCartCurrent = np.column_stack((x, y))
+        numTotalSites = coordsGeogCurrent.shape[0]
+
+        return (numTotalSites, coordsGeogCurrent, coordsCartCurrent)
+
+    
+    def _readDefGf(self, gfFile, gfType, coordsGeog):
+        """
+        Function to read DEFNODE Green's function file.
+        """
+        epsilon = 1.0e-5
+        coordsGeogCurrent = None
+        if (coordsGeog is not None):
+            coordsGeogCurrent = coordsGeog.copy()
+        f = open(gfFile, 'r')
+        fLines = f.readlines()
+        numSites = len(fLines) - 1
+        gfFortran = '(A1, 2f10.4, 1x, (4d20.13))'
+        if (gfType == 'u'):
+            gfFortran = '(A1, 2f10.4, (2d20.13), 1x, a8)'
+        gfFmt = FortranRecordReader(gfFortran)
+        gfCoordsGeog = np.zeros((numSites, 2), dtype=np.float64)
+        sites = []
+        pointNum = 0
+
+        for lineNum in range(1, numSites + 1):
+            if (gfType == 'g'):
+                (type, gfCoordsGeog[pointNum,0], gfCoordsGeog[pointNum,1],
+                 gf1, gf2, gf3, gf4) = gfFmt.read(fLines[lineNum])
+            else:
+                (type, gfCoordsGeog[pointNum,0], gfCoordsGeog[pointNum,1], gf1, gf2, site) = gfFmt.read(fLines[lineNum])
+                sites.append(site)
+            if (coordsGeogCurrent is not None):
+                diff = coordsGeogCurrent - gfCoordsGeog[pointNum,:]
+                norm = np.linalg.norm(diff, axis=1)
+                indMin = np.argmin(norm)
+                if (norm[indMin] > epsilon):
+                    coordsGeogCurrent = np.append(coordsGeogCurrent, gfCoordsGeog[pointNum,:].reshape(1,2), axis=0)
+            else:
+                coordsGeogCurrent = gfCoordsGeog[pointNum,:].reshape(1,2)
+            pointNum += 1
+
+        (x, y) = self.transWGS84ToOutput.transform(coordsGeogCurrent[:,0], coordsGeogCurrent[:,1])
+        coordsCartCurrent = np.column_stack((x, y))
+        numTotalSites = coordsGeogCurrent.shape[0]
+
+        if (gfType == 'g'):
+            return (numTotalSites, coordsGeogCurrent, coordsCartCurrent)
+        else:
+            return (numTotalSites, coordsGeogCurrent, coordsCartCurrent, sites)
+
     
     def _readGfFile(self, fileNum, gfType):
         """
@@ -463,6 +496,56 @@ class PytdefReadDefGf(Application):
         o.close()
 
         return coords
+
+
+    def _getSiteLocations(self):
+        """
+        Loop through all GF files and get number of unique site locations.
+        """
+        print("Finding unique site locations:")
+        numDefNodes = max(self.numGpsFiles, self.numInsarFiles, self.numUpFiles)
+
+        # Loop over files.
+        for nodeNum in range(numDefNodes):
+            if (self.gfType == 'defnode'):
+                if (self.numGpsFiles != 0):
+                    (self.numGpsResponses, self.gpsResponseCoordsGeog, self.gpsResponseCoords) = \
+                        self._readDefGf(self.GpsFiles[nodeNum], 'g', self.gpsResponseCoordsGeog)
+                if (self.numUpFiles != 0):
+                    (self.numUpResponses, self.upResponseCoordsGeog, self.upResponseCoords) = \
+                        self._readDefGf(self.UpFiles[nodeNum], 'g', self.upResponseCoordsGeog)
+            else:
+                if (self.numGpsFiles != 0):
+                    (self.numGpsResponses, self.gpsResponseCoordsGeog, self.gpsResponseCoords) = \
+                        self._readTDefGf(self.GpsFiles[nodeNum], self.gpsResponseCoordsGeog)
+                if (self.numInsarFiles != 0):
+                    (self.numInsarResponses, self.insarResponseCoordsGeog, self.insarResponseCoords) = \
+                        self._readTDefGf(self.InsarFiles[nodeNum], self.insarResponseCoordsGeog)
+
+        # Sort sites by lon, then lat.
+        if (self.numGpsFiles != 0):
+            inds = np.lexsort((self.gpsResponseCoordsGeog[:,1], self.gpsResponseCoordsGeog[:,0]))
+            self.gpsResponseCoordsGeog = self.gpsResponseCoordsGeog[inds,:]
+            self.gpsResponseCoords = self.gpsResponseCoords[inds,:]
+            zeros = np.zeros((self.numGpsResponses,1), dtype=np.float64)
+            self.gpsResponseCoords = np.hstack((self.gpsResponseCoords, zeros))
+            self.gpsResponseTree = scipy.spatial.cKDTree(self.gpsResponseCoordsGeog)
+        if (self.numUpFiles != 0):
+            inds = np.lexsort((self.upResponseCoordsGeog[:,1], self.upResponseCoordsGeog[:,0]))
+            self.upResponseCoordsGeog = self.upResponseCoordsGeog[inds,:]
+            self.upResponseCoords = self.upResponseCoords[inds,:]
+            zeros = np.zeros((self.numUpResponses,1), dtype=np.float64)
+            self.upResponseCoords = np.hstack((self.upResponseCoords, zeros))
+            self.upResponseTree = scipy.spatial.cKDTree(self.upResponseCoordsGeog)
+        if (self.numInsarFiles != 0):
+            inds = np.lexsort((self.insarResponseCoordsGeog[:,1], self.insarResponseCoordsGeog[:,0]))
+            self.insarResponseCoordsGeog = self.insarResponseCoordsGeog[inds,:]
+            self.insarResponseCoords = self.insarResponseCoords[inds,:]
+            zeros = np.zeros((self.numInsarResponses,1), dtype=np.float64)
+            self.insarResponseCoords = np.hstack((self.insarResponseCoords, zeros))
+            self.insarResponseTree = scipy.spatial.cKDTree(self.insarResponseCoordsGeog)
+
+        return
 
 
     def _readDefnodeGf(self):

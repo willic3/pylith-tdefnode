@@ -22,6 +22,7 @@ else:
     from pythia.pyre.applications.Script import Script as Application
 
 import numpy as np
+import scipy.spatial
 
 
 class PytdefGetTdefMoment(Application):
@@ -33,7 +34,8 @@ class PytdefGetTdefMoment(Application):
     ## @li \b tdef_flt_info_file Name of TDefnode fault attribute file.
     ## @li \b fault_normal_dist Distance to project on either side of fault to get properties.
     ## @li \b tdef_flt_info_output_file Name of modified fault attribute file to create.
-    ## @li \b vtk_output_file Name of output VTK file.
+    ## @li \b vtk_point_output_file Name of VTK file with output at patch centroids.
+    ## @li \b vtk_patch_output_file Name of VTK file with output at patch nodes.
 
     ## \b Facilities
     ## @li \b db_velocity Spatial database for seismic velocity.
@@ -55,8 +57,11 @@ class PytdefGetTdefMoment(Application):
     tdefFltInfoOutputFile = inventory.str("tdef_flt_info_output_file", default="mod_flt_001_shearmod_atr.gmt")
     tdefFltInfoOutputFile.meta['tip'] = "Name of modified TDefnode fault attribute file to create."
 
-    vtkOutputFile = inventory.str("vtk_output_file", default="mod_flt_001_shearmod_atr.vtk")
-    vtkOutputFile.meta['tip'] = "Name of output VTK file."
+    vtkPointOutputFile = inventory.str("vtk_point_output_file", default="mod_flt_001_shearmod_point_atr.vtk")
+    vtkPointOutputFile.meta['tip'] = "Name of VTK file with output at patch centroids."
+
+    vtkPatchOutputFile = inventory.str("vtk_patch_output_file", default="mod_flt_001_shearmod_patch_atr.vtk")
+    vtkPatchOutputFile.meta['tip'] = "Name of VTK file with output at patch nodes."
 
     from spatialdata.spatialdb.SimpleGridDB import SimpleGridDB
     dbVelocity = inventory.facility("db_velocity", family="spatial_database", factory=SimpleGridDB)
@@ -127,6 +132,8 @@ class PytdefGetTdefMoment(Application):
         coordsPos = np.zeros((numPatches, 3), dtype=np.float64)
         coordsNeg = np.zeros((numPatches, 3), dtype=np.float64)
         cellCenters = np.zeros((numPatches, 3), dtype=np.float64)
+        vertCoords = np.zeros((numPatches, 4, 3), dtype=np.float64)
+        vertCoordsGeog = np.zeros((numPatches, 4, 3), dtype=np.float64)
         faultNum = np.zeros(numPatches, dtype=np.int32)
         if (PYTHON_MAJOR_VERSION == 2):
             csLocal = self.coordsysLocal
@@ -142,8 +149,11 @@ class PytdefGetTdefMoment(Application):
         for patchNum in range(numPatches):
             lineStart = patchNum*5
             lineEnd = lineStart + 5
-            (faultNum[patchNum],
+            (faultNum[patchNum], vertCoords[patchNum,:,:],
              cellCenters[patchNum,:], coordsPos[patchNum,:], coordsNeg[patchNum,:]) = self._getSampleCoords(lines[lineStart:lineEnd], csLocal, csTDefnode)
+
+        # Get coordinates and connectivity for fault mesh.
+        (vertCoordsUnique, cellConnect) = self._getConnectivity(vertCoords, numPatches)
 
         # Query spatial database to get Vs and density.
         dataPos = np.zeros((numPatches, 2), dtype=np.float64)
@@ -183,16 +193,10 @@ class PytdefGetTdefMoment(Application):
             lineStart = patchNum*5
             lineEnd = lineStart + 5
             lineHead = lines[lineStart].strip()
-            # if (PYTHON_MAJOR_VERSION ==2):
             effShearModulusStr = '%.5e' % effShearModulus[patchNum]
             densityStr = '%.6f' % density[patchNum]
             vsStr = '%.6f' % vs[patchNum]
             vpStr = '%.6f' % vp[patchNum]
-            # else:
-            #     effShearModulusStr = f'{effShearModulus[patchNum]:.6g}'
-            #     densityStr = f'{density[patchNum]:.6g}'
-            #     vsStr = f'{vs[patchNum]:.6g}'
-            #     vpStr = f'{vp[patchNum]:.6g}'
             lineHeadMod = lineHead + '  ' + effShearModulusStr + '  ' + densityStr + '  ' + vsStr + '  ' + vpStr + '\n'
             w.write(lineHeadMod)
             for lineNum in range(lineStart + 1, lineEnd):
@@ -201,13 +205,76 @@ class PytdefGetTdefMoment(Application):
         i.close()
         w.close()
 
-        # Write VTK output file.
-        self._writeVTKFile(cellCenters, faultNum, effShearModulus, density, vs, vp)
+        # Write VTK output files.
+        self._writePointVTKFile(cellCenters, faultNum, effShearModulus, density, vs, vp)
+        self._writePatchVTKFile(vertCoordsUnique, cellConnect, faultNum, effShearModulus, density, vs, vp)
 
         return
 
 
-    def _writeVTKFile(self, coords, faultNum, effShearModulus, density, vs, vp):
+    def _getConnectivity(self, vertCoords, numPatches):
+        """
+        Get connectivity for fault mesh.
+        """
+        vertCoordsFlat = vertCoords.reshape((4*numPatches, 3))
+        vertsUnique = np.unique(vertCoordsFlat, axis=0)
+        connect = -1*np.ones((numPatches, 4), dtype=np.int64)
+        tree = scipy.spatial.KDTree(vertsUnique)
+        (dist, vertInds) = tree.query(vertCoordsFlat)
+        connect = vertInds.reshape((numPatches, 4))
+
+        return (vertsUnique, connect)
+
+
+    def _writePatchVTKFile(self, coords, connect, faultNum, effShearModulus, density, vs, vp):
+        """
+        Write VTK output file with values over a patch.
+        """
+
+        numPoints = coords.shape[0]
+        numCells = connect.shape[0]
+        
+        # Set up header info.
+        vtkHead = "# vtk DataFile Version 2.0\n" + \
+            "Sampled points\n" + \
+            "ASCII\n" + \
+            "DATASET UNSTRUCTURED_GRID\n" + \
+            "POINTS %d double\n" % numPoints
+
+        cellHead = "CELLS %d %d\n" % (numCells, 5*numCells)
+        cells = 4*np.ones((numCells, 5), dtype=np.int64)
+        cells[:,1:] = connect
+        cellTypeHead = "CELL_TYPES %d\n" % numCells
+        cellTypes = 9*np.ones(numCells, dtype=np.int64)
+
+        # Write output file.
+        v = open(self.vtkPatchOutputFile, 'w')
+        v.write(vtkHead)
+        np.savetxt(v, coords)
+        v.write(cellHead)
+        np.savetxt(v, cells, fmt='%d')
+        v.write(cellTypeHead)
+        np.savetxt(v, cellTypes, fmt='%d')
+        v.write("CELL_DATA %d\n" % numCells)
+        v.write("SCALARS fault_number int\n")
+        v.write("LOOKUP_TABLE default\n")
+        np.savetxt(v, faultNum, fmt='%d')
+        v.write("SCALARS effective_shear_modulus float\n")
+        v.write("LOOKUP_TABLE default\n")
+        np.savetxt(v, effShearModulus)
+        v.write("SCALARS density float\n")
+        v.write("LOOKUP_TABLE default\n")
+        np.savetxt(v, density)
+        v.write("SCALARS vs float\n")
+        v.write("LOOKUP_TABLE default\n")
+        np.savetxt(v, vs)
+        v.write("SCALARS vp float\n")
+        v.write("LOOKUP_TABLE default\n")
+        np.savetxt(v, vp)
+        v.close()
+
+
+    def _writePointVTKFile(self, coords, faultNum, effShearModulus, density, vs, vp):
         """
         Write VTK output file with values at sampled points.
         """
@@ -228,7 +295,7 @@ class PytdefGetTdefMoment(Application):
         cellTypes = np.ones(numPoints, dtype=np.int32)
 
         # Write output file.
-        v = open(self.vtkOutputFile, 'w')
+        v = open(self.vtkPointOutputFile, 'w')
         v.write(vtkHead)
         np.savetxt(v, coords)
         v.write(cellHead)
@@ -263,8 +330,8 @@ class PytdefGetTdefMoment(Application):
         """
         # Get header line and make empty arrays.
         from spatialdata.geocoords.Converter import convert
-        headline = lines[0]
-        faultNum = headline.split()[2]
+        headline = lines[0].split()
+        faultNum = int(headline[2])
         lons = np.zeros(4, dtype=np.float64)
         lats = np.zeros(4, dtype=np.float64)
         depths = np.zeros(4, dtype=np.float64)
@@ -295,7 +362,7 @@ class PytdefGetTdefMoment(Application):
         coordsPos = (cellCenter + normal*self.faultNormalDist).reshape(1,3)
         coordsNeg = (cellCenter - normal*self.faultNormalDist).reshape(1,3)
 
-        return(faultNum, cellCenter, coordsPos, coordsNeg)
+        return(faultNum, coords, cellCenter, coordsPos, coordsNeg)
                 
         
 # ----------------------------------------------------------------------
